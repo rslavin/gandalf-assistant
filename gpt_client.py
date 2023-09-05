@@ -15,7 +15,9 @@ class GptClient:
                         "Treat me like a dear friend. If a message I send you is indecipherable,"
                         "or if it is just punctuation, or if it is empty, just tell me '-1' with no other text."
                         "as your response. I am communicating with you through a speech to text engine which may"
-                        "not always hear me correctly. Adjust for this, but don't tell me you're adjusting."},
+                        "not always hear me correctly. Adjust for this, but don't tell me you're adjusting."
+                        "if my message to you ends in 'nevermind' or 'never mind' just tell me '-1' with no other"
+                        "text."},
         ]
 
     def send_message(self, message):
