@@ -20,7 +20,7 @@ def play_gandalf(mp3, light=None):
     samples /= 32767
 
     # More dramatic pitch shift
-    y_shifted = librosa.effects.pitch_shift(samples.T, sr=rate, n_steps=-6)
+    y_shifted = librosa.effects.pitch_shift(samples.T, sr=rate, n_steps=-8)
 
     # Timber modifications (adding brightness)
     y_bright = librosa.effects.preemphasis(y_shifted, coef=0.57)
