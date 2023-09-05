@@ -100,6 +100,7 @@ class Listening(State):
                 gpt_time = time.time() - start_time
                 print(f"GPT request complete ({gpt_time} seconds)")
                 if response == "-1":
+                    self.light.end_pulse()
                     return False
 
                 # convert the gpt text to speech
