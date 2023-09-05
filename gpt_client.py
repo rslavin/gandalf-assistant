@@ -12,9 +12,10 @@ class GptClient:
                         "words. Don't be too apologetic. Pretend you are my equal. Don't ask me followup questions"
                         "about whether or not you can assist me. Try to relate your answers to lore from the Tolkien"
                         "universe."
-                        "Treat me like a dear friend. If a message I send you is confusing or you are"
-                        "unable to answer it or if it is nonsense or if it is just puncutation, tell me '-1' "
-                        "as your response."},
+                        "Treat me like a dear friend. If a message I send you is indecipherable,"
+                        "or if it is just punctuation, or if it is empty, just tell me '-1' with no other text."
+                        "as your response. I am communicating with you through a speech to text engine which may"
+                        "not always hear me correctly. Adjust for this, but don't tell me you're adjusting."},
         ]
 
     def send_message(self, message):

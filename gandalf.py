@@ -3,17 +3,22 @@ from states.asleep import Asleep
 from states.listening import Listening
 from dotenv import load_dotenv
 import RPi.GPIO as GPIO
+from light import Light
 
 load_dotenv()
+
+LED_PIN=20
 
 
 class Gandalf:
     def __init__(self):
         self.pa = pyaudio.PyAudio()
+        self.light = Light(LED_PIN)
+        self.light.blink(3)
 
         self.states = [
             Asleep(),
-            Listening()
+            Listening(self.light)
         ]
         self.current_state = 0
 

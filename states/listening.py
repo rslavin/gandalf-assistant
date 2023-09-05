@@ -1,37 +1,56 @@
 import wave
 import pyaudio
-import audioop
 import time
 import openai
 import os
 from gpt_client import GptClient
-from gtts import gTTS
 from light import Light
 from .state_interface import State
-from voice_mod import play_gandalf
+from tts import play_gandalf
+import webrtcvad
+from scipy.signal import resample
+import numpy as np
+import traceback
 
 RATE = 44100
+VOICE_DETECTION_RATE = 32000  # voice detection rate to be downsampled to
 CHANNELS = 1
-SILENCE_THRESHOLD = 60
+SILENCE_THRESHOLD = 70
+VOICE_ACTIVITY_THRESHOLD = 2  # 1 gives more false positive, 3 gives more false negatives
 FRAMES_PER_BUFFER = 1026
 MAX_DURATION = 10
 PAUSE_TIME = 3
 LED_PIN = 20
 
 
+def downsample_audio(audio_data, from_rate, to_rate):
+    if not audio_data:
+        return None
+
+    # Convert to numpy array if audio_data is in bytes
+    if isinstance(audio_data, bytes):
+        audio_data = np.frombuffer(audio_data, dtype=np.int16)
+
+    audio_data = np.array(audio_data)
+    ratio = to_rate / from_rate
+    audio_len = len(audio_data)
+    new_len = int(audio_len * ratio)
+    resampled_audio = resample(audio_data, new_len)
+    return np.int16(resampled_audio)
+
+
 class Listening(State):
 
-    def __init__(self):
+    def __init__(self, light):
         self.gpt = GptClient()
-        self.light = Light(LED_PIN)
+        self.light = light
+        self.vad = webrtcvad.Vad(VOICE_ACTIVITY_THRESHOLD)
 
     def run(self):
         while True:
             voice_detected = False
             self.light.turn_on()
             print("Entering Listening state.")
-
-            # TODO run again to see if the user has a followup question
 
             pa = pyaudio.PyAudio()
             audio_stream = None
@@ -55,24 +74,33 @@ class Listening(State):
 
                 frames = []
                 start_time = time.time()
-                silence_since = None
+                silence_since = time.time()
+                frame_length = int(VOICE_DETECTION_RATE * 0.01)
                 while time.time() - start_time <= MAX_DURATION:
                     data = audio_stream.read(FRAMES_PER_BUFFER, exception_on_overflow=False)
-                    rms_level = audioop.rms(data, pa.get_sample_size(pyaudio.paInt16))
+                    downsampled_data = downsample_audio(data, RATE, VOICE_DETECTION_RATE)
 
-                    if rms_level < SILENCE_THRESHOLD:
-                        if silence_since is None:
-                            silence_since = time.time()
-                        elif time.time() - silence_since >= PAUSE_TIME:
+                    if downsampled_data is not None:
+                        if silence_since is not None and time.time() - silence_since >= PAUSE_TIME:
                             break
-                    else:
-                        silence_since = None
-                        # keep track of whether sound is detected
-                        voice_detected = True
+
+                        for i in range(0, len(downsampled_data), frame_length):
+                            frame = downsampled_data[i:i + frame_length]
+
+                            if len(frame) == frame_length:
+                                try:
+                                    if self.vad.is_speech(frame.tobytes(), VOICE_DETECTION_RATE):
+                                        print("Voice detected")
+                                        silence_since = time.time()
+                                        voice_detected = True
+                                except Exception as e:
+                                    print(f"Error in WebRTC VAD: {e}")
+                                    continue
+
                     frames.append(data)
                 if not voice_detected:
                     print("No speech detected. Existing state...")
-                    self.light.end_pulse()
+                    self.light.turn_off()
                     break
 
                 # write audio to the file
@@ -100,32 +128,24 @@ class Listening(State):
                 gpt_time = time.time() - start_time
                 print(f"GPT request complete ({gpt_time} seconds)")
                 if response == "-1":
-                    self.light.end_pulse()
+                    self.light.turn_off()
                     return False
 
                 # convert the gpt text to speech
                 print("Converting gpt text to speech...")
-                start_time = time.time()
-                tts = gTTS(response, lang='en', tld='co.uk')
-                tts_time = time.time() - start_time
-                print(f"TTS compete ({tts_time}s)")
-
-                print("Speech received. Playing...")
-                start_time = time.time()
-                tts.save("response.mp3")
-                mp3_time = time.time() - start_time
-                print(f"mp3 saved ({mp3_time} seconds)")
-                play_gandalf("response.mp3", self.light)
-                os.remove("response.mp3")
+                self.light.turn_off()
+                play_gandalf(response)
 
             except Exception as e:
                 print(f"An error occurred: {e}")
+                traceback.print_exc()
                 return False
 
             finally:
                 if audio_stream is not None:
                     audio_stream.stop_stream()
                     audio_stream.close()
+                    self.light.turn_off()
                 pa.terminate()
 
         return True

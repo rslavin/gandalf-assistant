@@ -24,10 +24,20 @@ class Light:
         self.pulse_thread = None
         self.stop_event = threading.Event()
 
+    def blink(self, how_many, pause=0.5):
+        for i in range(how_many):
+            self.turn_on()
+            time.sleep(pause)
+            self.turn_off()
+            time.sleep(pause)
+
     def turn_on(self):
         GPIO.output(self.pin, True)
 
     def turn_off(self):
+        if self.pulse_thread is not None:
+            self.pulse_thread.join(timeout=1)
+        self.p.stop()
         GPIO.output(self.pin, False)
 
     def begin_pulse(self):
