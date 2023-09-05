@@ -54,6 +54,3 @@ class Asleep(State):
                 print("Wake word detected!")
                 pa.close(audio_stream)
                 return True
-
-    def stop(self):
-        pass

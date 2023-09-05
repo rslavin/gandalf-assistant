@@ -128,6 +128,3 @@ class Listening(State):
                 pa.terminate()
 
         return True
-
-    def stop(self):
-        pass
