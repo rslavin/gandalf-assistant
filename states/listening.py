@@ -4,7 +4,6 @@ import time
 import openai
 import os
 from gpt_client import GptClient
-from light import Light
 from .state_interface import State
 from tts import play_gandalf
 import webrtcvad
@@ -16,11 +15,11 @@ RATE = 44100
 VOICE_DETECTION_RATE = 32000  # voice detection rate to be downsampled to
 CHANNELS = 1
 SILENCE_THRESHOLD = 70
-VOICE_ACTIVITY_THRESHOLD = 2  # 1 gives more false positive, 3 gives more false negatives
+VOICE_ACTIVITY_THRESHOLD = 2  # 1 gives more false positives, 3 gives more false negatives
 FRAMES_PER_BUFFER = 1026
 MAX_DURATION = 10
 PAUSE_TIME = 3
-LED_PIN = 20
+TMP_COMMAND_FILE = "tmp.wav"
 
 
 def downsample_audio(audio_data, from_rate, to_rate):
@@ -64,7 +63,7 @@ class Listening(State):
                     frames_per_buffer=FRAMES_PER_BUFFER,
                 )
 
-                wf = wave.open("tmp.wav", 'wb')
+                wf = wave.open(TMP_COMMAND_FILE, 'wb')
                 wf.setnchannels(CHANNELS)
                 wf.setsampwidth(pa.get_sample_size(pyaudio.paInt16))
                 wf.setframerate(RATE)
@@ -108,19 +107,22 @@ class Listening(State):
                 wf.close()
                 self.light.begin_pulse()
 
-                # transcribe tmp.wav with whisper
+                # transcribe .wav with whisper
                 print("Transcribing audio...")
                 start_time = time.time()
-                with open("tmp.wav", "rb") as audio_file:
+                with open(TMP_COMMAND_FILE, "rb") as audio_file:
                     question_text = openai.Audio.transcribe(
                         file=audio_file,
                         model="whisper-1",
                         response_format="text",
                         language="en"
                     )
-                os.remove("tmp.wav")
+                os.remove(TMP_COMMAND_FILE)
                 transcribe_time = time.time() - start_time
                 print(f"Transcription complete ({transcribe_time} seconds)")
+
+                # TODO add filter for gibberish or simple commands (e.g. "what time is it?") to skip gpt
+                # TODO nevermind, thank you, what time is it?, thanks, repeat that,
 
                 # send transcribed query to gpt
                 start_time = time.time()
@@ -134,6 +136,7 @@ class Listening(State):
                 # convert the gpt text to speech
                 print("Converting gpt text to speech...")
                 self.light.turn_off()
+                # TODO have a local tts alternative
                 play_gandalf(response)
 
             except Exception as e:
