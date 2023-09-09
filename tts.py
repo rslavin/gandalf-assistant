@@ -3,13 +3,10 @@ from botocore.exceptions import BotoCoreError, ClientError
 from contextlib import closing
 import os
 import sys
-import subprocess
 from tempfile import gettempdir
-import time
 
 
 def play_gandalf(text):
-    start_time = time.time()
     session = Session(aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
                       aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'), region_name='us-east-1')
     polly = session.client("polly")
@@ -45,5 +42,4 @@ def play_gandalf(text):
         # The response didn't contain audio data, exit gracefully
         print("Could not stream audio")
         return None
-    print(f"Text to speech complete ({time.time() - start_time} seconds)")
-    subprocess.call(["xdg-open", output])
+    return output

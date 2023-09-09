@@ -1,8 +1,9 @@
 import wave
 import pyaudio
-import time
+import subprocess
 import openai
 import os
+import sys
 from gpt_client import GptClient
 from .state_interface import State
 from tts import play_gandalf
@@ -20,7 +21,7 @@ VOICE_ACTIVITY_THRESHOLD = 2  # 1 gives more false positives, 3 gives more false
 FRAMES_PER_BUFFER = 1026
 MAX_DURATION = 10
 PAUSE_TIME = 3
-TMP_COMMAND_FILE = "tmp.wav"
+TRANSCRIPTION_FILE = "tmp.wav"
 
 
 def downsample_audio(audio_data, from_rate, to_rate):
@@ -65,6 +66,19 @@ def local_commands(query: str):
     return 0, query
 
 
+def transcribe_audio(file_path):
+    with open(file_path, "rb") as audio_file:
+        # TODO TRANSCRIPTION interface
+        question_text = openai.Audio.transcribe(
+            file=audio_file,
+            model="whisper-1",
+            response_format="text",
+            language="en"
+        )
+    os.remove(file_path)
+    return question_text
+
+
 class Listening(State):
 
     def __init__(self, light):
@@ -90,7 +104,7 @@ class Listening(State):
                     frames_per_buffer=FRAMES_PER_BUFFER,
                 )
 
-                wf = wave.open(TMP_COMMAND_FILE, 'wb')
+                wf = wave.open(TRANSCRIPTION_FILE, 'wb')
                 wf.setnchannels(CHANNELS)
                 wf.setsampwidth(pa.get_sample_size(pyaudio.paInt16))
                 wf.setframerate(RATE)
@@ -116,14 +130,17 @@ class Listening(State):
                             if len(frame) == frame_length:
                                 try:
                                     if self.vad.is_speech(frame.tobytes(), VOICE_DETECTION_RATE):
-                                        print("Voice detected")
                                         silence_since = time.time()
                                         voice_detected = True
+                                        print("V", end="", flush=True)
+                                    else:
+                                        print("-", end="", flush=True)
                                 except Exception as e:
-                                    print(f"Error in WebRTC VAD: {e}")
+                                    print(f"Error detecting voice: {e}")
                                     continue
 
                     frames.append(data)
+                print("")  #newline
                 if not voice_detected:
                     print("No speech detected. Existing state...")
                     self.light.turn_off()
@@ -134,48 +151,54 @@ class Listening(State):
                 wf.close()
                 self.light.begin_pulse()
 
-                # transcribe .wav with whisper
+                # TRANSCRIBE
                 print("Transcribing audio...")
                 start_time = time.time()
-                with open(TMP_COMMAND_FILE, "rb") as audio_file:
-                    # TODO TRANSCRIPTION interface
-                    question_text = openai.Audio.transcribe(
-                        file=audio_file,
-                        model="whisper-1",
-                        response_format="text",
-                        language="en"
-                    )
-                os.remove(TMP_COMMAND_FILE)
+                question_text = transcribe_audio(TRANSCRIPTION_FILE)
                 transcribe_time = time.time() - start_time
-                print(f"Transcription complete ({transcribe_time} seconds)")
+                print(f"Transcription complete ({transcribe_time:.2f} seconds)")
                 print(f"I heard '{question_text}'")
 
+                # PROCESS ANSWER
+                start_time = time.time()
                 action, question_text = local_commands(question_text)
                 if action == -1:  # drop
-                    print("Filtered.")
+                    print("Filtered out locally.")
                     self.light.turn_off()
                     return False
                 elif action == 1:  # replace
                     print("Answering locally...")
                     response = question_text
+                    answer_time = time.time() - start_time
+                    print(f"Local request complete ({answer_time:.2f} seconds)")
                 else:  # get the answer from the llm
                     # send transcribed query to gpt
                     print("Asking LLM...")
                     start_time = time.time()
                     # TODO LLM interface
                     response = self.gpt.send_message(question_text)
-                    gpt_time = time.time() - start_time
-                    print(f"GPT request complete ({gpt_time} seconds)")
                     if response == "-1":
                         self.light.turn_off()
                         return False
+                    answer_time = time.time() - start_time
+                    print(f"GPT request complete ({answer_time:.2f} seconds)")
 
-                # convert the gpt text to speech
-                print("Converting gpt text to speech...")
-                # TODO check if this light stuff is taking too long
+                # CONVERT ANSWER TO SPEECH
                 self.light.turn_off()
                 # TODO TTS interface
-                play_gandalf(response)
+                print("Converting gpt text to speech...")
+                start_time = time.time()
+                response_voice = play_gandalf(response)
+                tts_time = time.time() - start_time
+                print(f"Text to speech complete ({tts_time:.2f} seconds)")
+
+                total_time = transcribe_time + answer_time + tts_time
+                print(f"Total processing time: {total_time:.2f} seconds")
+
+                if response_voice:
+                    subprocess.call(["xdg-open", response_voice])
+                else:
+                    print(f"Error playing {response_voice}.")
 
             except Exception as e:
                 print(f"An error occurred: {e}")
