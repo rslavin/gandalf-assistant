@@ -10,6 +10,7 @@ import webrtcvad
 from scipy.signal import resample
 import numpy as np
 import traceback
+import time
 
 RATE = 44100
 VOICE_DETECTION_RATE = 32000  # voice detection rate to be downsampled to
@@ -36,6 +37,32 @@ def downsample_audio(audio_data, from_rate, to_rate):
     new_len = int(audio_len * ratio)
     resampled_audio = resample(audio_data, new_len)
     return np.int16(resampled_audio)
+
+
+# TODO extract this to a separate file and split it into individual functions for clarity
+# TODO never mind, thank you, what time is it?, thanks, repeat that, no thanks, set your volume to X%
+def local_commands(query: str):
+    """
+    Return a tuple where the first element dictates what to do with the command and the second element is either
+    a query (which may be modified) or None if the query should be dropped.A
+    For the first value: -1 => drop the query, 0 => continue with getting a response, 1 => use this response instead
+    :param query:
+    :return:
+    """
+    query_stripped = query.strip(".?! \t\n")
+    print(f"Filtering '{query_stripped}'")
+    # empty string
+    alpha_string = ''.join(e for e in query_stripped if e.isalpha())
+    if not len(alpha_string) or alpha_string.lower().endswith(("nevermind", "forgetit", "thankyou")):
+        return -1, None
+
+    # time
+    if query_stripped.lower() == "what time is it":
+        t = time.localtime()
+        current_time = time.strftime("%I:%M", t)
+        return 1, f"It is {current_time}."
+
+    return 0, query
 
 
 class Listening(State):
@@ -111,6 +138,7 @@ class Listening(State):
                 print("Transcribing audio...")
                 start_time = time.time()
                 with open(TMP_COMMAND_FILE, "rb") as audio_file:
+                    # TODO TRANSCRIPTION interface
                     question_text = openai.Audio.transcribe(
                         file=audio_file,
                         model="whisper-1",
@@ -120,23 +148,33 @@ class Listening(State):
                 os.remove(TMP_COMMAND_FILE)
                 transcribe_time = time.time() - start_time
                 print(f"Transcription complete ({transcribe_time} seconds)")
+                print(f"I heard '{question_text}'")
 
-                # TODO add filter for gibberish or simple commands (e.g. "what time is it?") to skip gpt
-                # TODO nevermind, thank you, what time is it?, thanks, repeat that,
-
-                # send transcribed query to gpt
-                start_time = time.time()
-                response = self.gpt.send_message(question_text)
-                gpt_time = time.time() - start_time
-                print(f"GPT request complete ({gpt_time} seconds)")
-                if response == "-1":
+                action, question_text = local_commands(question_text)
+                if action == -1:  # drop
+                    print("Filtered.")
                     self.light.turn_off()
                     return False
+                elif action == 1:  # replace
+                    print("Answering locally...")
+                    response = question_text
+                else:  # get the answer from the llm
+                    # send transcribed query to gpt
+                    print("Asking LLM...")
+                    start_time = time.time()
+                    # TODO LLM interface
+                    response = self.gpt.send_message(question_text)
+                    gpt_time = time.time() - start_time
+                    print(f"GPT request complete ({gpt_time} seconds)")
+                    if response == "-1":
+                        self.light.turn_off()
+                        return False
 
                 # convert the gpt text to speech
                 print("Converting gpt text to speech...")
+                # TODO check if this light stuff is taking too long
                 self.light.turn_off()
-                # TODO have a local tts alternative
+                # TODO TTS interface
                 play_gandalf(response)
 
             except Exception as e:
