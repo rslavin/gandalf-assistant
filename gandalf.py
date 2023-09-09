@@ -19,7 +19,7 @@ class Gandalf:
         file_path = os.path.join(dir_path, "assets/gandalf_intro.mp3")
         subprocess.call(["xdg-open", file_path])
         self.light = Light(LED_PIN)
-        self.light.blink(3)
+        self.light.blink(2)
 
         self.states = [
             Asleep(),

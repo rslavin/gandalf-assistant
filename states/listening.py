@@ -19,7 +19,7 @@ CHANNELS = 1
 SILENCE_THRESHOLD = 70
 VOICE_ACTIVITY_THRESHOLD = 2  # 1 gives more false positives, 3 gives more false negatives
 FRAMES_PER_BUFFER = 1026
-MAX_DURATION = 10
+MAX_DURATION = 15
 PAUSE_TIME = 3
 TRANSCRIPTION_FILE = "tmp.wav"
 
@@ -55,6 +55,10 @@ def local_commands(query: str):
     # empty string
     alpha_string = ''.join(e for e in query_stripped if e.isalpha())
     if not len(alpha_string) or alpha_string.lower().endswith(("nevermind", "forgetit", "thankyou")):
+        return -1, None
+
+    # single word
+    if query_stripped.count(" ") == 0:
         return -1, None
 
     # time
