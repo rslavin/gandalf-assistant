@@ -3,8 +3,8 @@ import pyaudio
 import subprocess
 import openai
 import os
-import sys
 from gpt_client import GptClient
+from preprocessing import preprocess
 from .state_interface import State
 from tts import play_gandalf
 import webrtcvad
@@ -17,10 +17,10 @@ RATE = 44100
 VOICE_DETECTION_RATE = 32000  # voice detection rate to be downsampled to
 CHANNELS = 1
 SILENCE_THRESHOLD = 70
-VOICE_ACTIVITY_THRESHOLD = 2  # 1 gives more false positives, 3 gives more false negatives
+VOICE_ACTIVITY_THRESHOLD = 2  # 0 gives more false positives, 3 gives more false negatives
 FRAMES_PER_BUFFER = 1026
 MAX_DURATION = 15
-PAUSE_TIME = 3
+PAUSE_TIME = 2
 TRANSCRIPTION_FILE = "tmp.wav"
 
 
@@ -40,36 +40,6 @@ def downsample_audio(audio_data, from_rate, to_rate):
     return np.int16(resampled_audio)
 
 
-# TODO extract this to a separate file and split it into individual functions for clarity
-# TODO never mind, thank you, what time is it?, thanks, repeat that, no thanks, set your volume to X%
-def local_commands(query: str):
-    """
-    Return a tuple where the first element dictates what to do with the command and the second element is either
-    a query (which may be modified) or None if the query should be dropped.A
-    For the first value: -1 => drop the query, 0 => continue with getting a response, 1 => use this response instead
-    :param query:
-    :return:
-    """
-    query_stripped = query.strip(".?! \t\n")
-    print(f"Filtering '{query_stripped}'")
-    # empty string
-    alpha_string = ''.join(e for e in query_stripped if e.isalpha())
-    if not len(alpha_string) or alpha_string.lower().endswith(("nevermind", "forgetit", "thankyou")):
-        return -1, None
-
-    # single word
-    if query_stripped.count(" ") == 0:
-        return -1, None
-
-    # time
-    if query_stripped.lower() == "what time is it":
-        t = time.localtime()
-        current_time = time.strftime("%I:%M", t)
-        return 1, f"It is {current_time}."
-
-    return 0, query
-
-
 def transcribe_audio(file_path):
     with open(file_path, "rb") as audio_file:
         # TODO TRANSCRIPTION interface
@@ -81,6 +51,31 @@ def transcribe_audio(file_path):
         )
     os.remove(file_path)
     return question_text
+
+
+def frequency_filter(frame, cutoff_low=15, cutoff_high=250, sample_rate=16000):
+    """
+    Uses fast fourier transform to filter out frequencies outside of human speech.
+    :param frame: Frame to filter
+    :param cutoff_low: Lower frequency bound
+    :param cutoff_high: Upper frequency bound
+    :param sample_rate: Sample rate
+    :return: Filtered frame
+    """
+    amplification_factor = 4.5
+    # Perform the FFT
+    sp = np.fft.fft(frame)
+    freq = np.fft.fftfreq(len(sp), 1 / sample_rate)
+
+    # Zero out frequencies outside the desired cutoff range
+    sp[(freq < cutoff_low)] = 0
+    sp[(freq > cutoff_high)] = 0
+
+    # Perform the Inverse FFT to get back to time domain
+    filtered_frame = np.fft.ifft(sp).real
+    filtered_frame *= amplification_factor  # amplify since the filtered audio will no longer be normalized
+
+    return filtered_frame
 
 
 class Listening(State):
@@ -133,7 +128,11 @@ class Listening(State):
 
                             if len(frame) == frame_length:
                                 try:
-                                    if self.vad.is_speech(frame.tobytes(), VOICE_DETECTION_RATE):
+                                    # Filter out unwanted frequencies
+                                    filtered_frame = frequency_filter(frame, sample_rate=VOICE_DETECTION_RATE)
+                                    filtered_frame = np.int16(filtered_frame.real)[:frame_length]
+
+                                    if self.vad.is_speech(filtered_frame.tobytes(), VOICE_DETECTION_RATE):
                                         silence_since = time.time()
                                         voice_detected = True
                                         print("V", end="", flush=True)
@@ -141,10 +140,12 @@ class Listening(State):
                                         print("-", end="", flush=True)
                                 except Exception as e:
                                     print(f"Error detecting voice: {e}")
+                                    traceback.print_exc()
+                                    exit()
                                     continue
 
                     frames.append(data)
-                print("")  #newline
+                print("")  # newline
                 if not voice_detected:
                     print("No speech detected. Existing state...")
                     self.light.turn_off()
@@ -165,7 +166,7 @@ class Listening(State):
 
                 # PROCESS ANSWER
                 start_time = time.time()
-                action, question_text = local_commands(question_text)
+                action, question_text = preprocess(question_text)
                 if action == -1:  # drop
                     print("Filtered out locally.")
                     self.light.turn_off()
@@ -178,6 +179,7 @@ class Listening(State):
                 else:  # get the answer from the llm
                     # send transcribed query to gpt
                     print("Asking LLM...")
+                    print(question_text)
                     start_time = time.time()
                     # TODO LLM interface
                     response = self.gpt.send_message(question_text)
@@ -186,6 +188,7 @@ class Listening(State):
                         return False
                     answer_time = time.time() - start_time
                     print(f"GPT request complete ({answer_time:.2f} seconds)")
+                print(f"Response: {response}")
 
                 # CONVERT ANSWER TO SPEECH
                 self.light.turn_off()
@@ -201,6 +204,7 @@ class Listening(State):
 
                 if response_voice:
                     subprocess.call(["xdg-open", response_voice])
+                    time.sleep(0.5)
                 else:
                     print(f"Error playing {response_voice}.")
 

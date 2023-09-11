@@ -2,7 +2,7 @@ import threading
 import RPi.GPIO as GPIO
 import time
 
-MAX_PULSE_BRIGHTNESS = 80
+MAX_PULSE_BRIGHTNESS = 75
 MIN_PULSE_BRIGHTNESS = 5
 
 
@@ -42,8 +42,9 @@ class Light:
         GPIO.output(self.pin, True)
 
     def turn_off(self):
+        self.stop_event.set()
         if self.pulse_thread is not None:
-            self.pulse_thread.join(timeout=1)
+            self.pulse_thread.join()
         self.p.stop()
         GPIO.output(self.pin, False)
 
@@ -53,12 +54,4 @@ class Light:
         self.pulse_thread = threading.Thread(target=pulse_led, args=(self.p, self.stop_event))
         self.pulse_thread.daemon = True
         self.pulse_thread.start()
-
-    def end_pulse(self):
-        print("ending pulse")
-        self.stop_event.set()
-        if self.pulse_thread is not None:
-            self.pulse_thread.join()
-        self.p.stop()
-        GPIO.output(self.pin, False)
 

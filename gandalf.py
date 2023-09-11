@@ -16,8 +16,9 @@ class Gandalf:
     def __init__(self):
         self.pa = pyaudio.PyAudio()
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        file_path = os.path.join(dir_path, "assets/gandalf_intro.mp3")
-        subprocess.call(["xdg-open", file_path])
+        if os.getenv('APP_ENV') != "LOCAL":
+            file_path = os.path.join(dir_path, "assets/startup.mp3")
+            subprocess.call(["xdg-open", file_path])
         self.light = Light(LED_PIN)
         self.light.blink(2)
 

@@ -23,7 +23,7 @@ class Asleep(State):
     def run(self):
         print("Entering Sleep state.")
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        file_path = os.path.join(dir_path, "..", "assets/Hey-Gandalf_en_raspberry-pi_v2_2_0.ppn")
+        file_path = os.path.join(dir_path, "..", "assets/wakeword.ppn")
         porcupine = pvporcupine.create(
             access_key=os.getenv('PORCUPINE_API_KEY'),
             keyword_paths=[file_path]
