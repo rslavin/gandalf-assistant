@@ -25,7 +25,7 @@ class Asleep(State):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         file_path = os.path.join(dir_path, "..", "assets/wakeword.ppn")
         porcupine = pvporcupine.create(
-            access_key=os.getenv('PORCUPINE_API_KEY'),
+            access_key=os.getenv('PICOVOICE_API_KEY'),
             keyword_paths=[file_path]
         )
 

@@ -3,8 +3,6 @@ import re
 import random
 
 
-# TODO extract this to a separate file and split it into individual functions for clarity
-# TODO never mind, thank you, what time is it?, thanks, repeat that, no thanks, set your volume to X%
 def preprocess(query: str):
     """
     Return a tuple where the first element dictates what to do with the command and the second element is either
@@ -18,6 +16,7 @@ def preprocess(query: str):
     query_stripped = query.strip(".?! \t\n")
     print(f"Preprocessing '{query_stripped}'")
 
+    # TODO "ignore this"
     # empty string or 'never mind'
     alpha_string = ''.join(e for e in query_stripped if e.isalpha())
     if not len(alpha_string) or alpha_string.lower().endswith(("nevermind", "forgetit", "thankyou")):
@@ -40,7 +39,7 @@ def preprocess(query: str):
     if is_date:
         return 1, is_date
 
-    return 0, prepend_timestamp(query, now)
+    return 0, query
 
 
 def prepend_timestamp(query, current_time):
@@ -83,6 +82,10 @@ def check_for_date(query, current_time):
         return random.choice(date_responses).format(date_1=time.strftime("%A, %B", current_time),
                                                     date_2=number_suffix(int(time.strftime("%d", current_time).lstrip("0"))))
 
+
+# TODO weather
+
+# TODO volume
 
 def number_suffix(d):
     return str(d) + {1: 'st', 2: 'nd', 3: 'rd'}.get(d % 20, 'th')

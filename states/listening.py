@@ -7,20 +7,20 @@ from gpt_client import GptClient
 from preprocessing import preprocess
 from .state_interface import State
 from tts import play_gandalf
-import webrtcvad
 from scipy.signal import resample
 import numpy as np
 import traceback
 import time
+import pvcobra
 
-RATE = 44100
-VOICE_DETECTION_RATE = 32000  # voice detection rate to be downsampled to
+RATE = 44100  # frequency of microphone
+VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
+AMPLIFICATION_FACTOR = 10
 CHANNELS = 1
 SILENCE_THRESHOLD = 70
-VOICE_ACTIVITY_THRESHOLD = 2  # 0 gives more false positives, 3 gives more false negatives
 FRAMES_PER_BUFFER = 1026
-MAX_DURATION = 15
-PAUSE_TIME = 2
+MAX_DURATION = 15  # how long to listen for regardless of voice detection
+PAUSE_TIME = 2  # seconds of pause before listening stops
 TRANSCRIPTION_FILE = "tmp.wav"
 
 
@@ -74,7 +74,6 @@ def frequency_filter(frame, cutoff_low=15, cutoff_high=250, sample_rate=16000):
     # Perform the Inverse FFT to get back to time domain
     filtered_frame = np.fft.ifft(sp).real
     filtered_frame *= amplification_factor  # amplify since the filtered audio will no longer be normalized
-
     return filtered_frame
 
 
@@ -83,7 +82,7 @@ class Listening(State):
     def __init__(self, light):
         self.gpt = GptClient()
         self.light = light
-        self.vad = webrtcvad.Vad(VOICE_ACTIVITY_THRESHOLD)
+        self.cobra_vad = pvcobra.create(access_key=os.getenv('PICOVOICE_API_KEY'))
 
     def run(self):
         while True:
@@ -112,42 +111,42 @@ class Listening(State):
                 audio_stream.start_stream()
 
                 frames = []
-                start_time = time.time()
+                buffer = np.array([], dtype=np.int16)
                 silence_since = time.time()
-                frame_length = int(VOICE_DETECTION_RATE * 0.01)
+                frame_length = self.cobra_vad.frame_length
+                start_time = time.time()
                 while time.time() - start_time <= MAX_DURATION:
                     data = audio_stream.read(FRAMES_PER_BUFFER, exception_on_overflow=False)
                     downsampled_data = downsample_audio(data, RATE, VOICE_DETECTION_RATE)
 
                     if downsampled_data is not None:
+                        buffer = np.concatenate((buffer, downsampled_data))
                         if silence_since is not None and time.time() - silence_since >= PAUSE_TIME:
                             break
 
-                        for i in range(0, len(downsampled_data), frame_length):
-                            frame = downsampled_data[i:i + frame_length]
+                        # take chunks out of size frame_length for voice detection
+                        while len(buffer) >= frame_length:
+                            frame = buffer[:frame_length]
+                            buffer = buffer[frame_length:]
+                            frame = np.int16(frame * AMPLIFICATION_FACTOR)
 
-                            if len(frame) == frame_length:
-                                try:
-                                    # Filter out unwanted frequencies
-                                    filtered_frame = frequency_filter(frame, sample_rate=VOICE_DETECTION_RATE)
-                                    filtered_frame = np.int16(filtered_frame.real)[:frame_length]
-
-                                    if self.vad.is_speech(filtered_frame.tobytes(), VOICE_DETECTION_RATE):
-                                        silence_since = time.time()
-                                        voice_detected = True
-                                        print("V", end="", flush=True)
-                                    else:
-                                        print("-", end="", flush=True)
-                                except Exception as e:
-                                    print(f"Error detecting voice: {e}")
-                                    traceback.print_exc()
-                                    exit()
-                                    continue
+                            try:
+                                if self.cobra_vad.process(frame) > 0.8:
+                                    silence_since = time.time()
+                                    voice_detected = True
+                                    print("V", end="", flush=True)
+                                else:
+                                    print("-", end="", flush=True)
+                            except Exception as e:
+                                print(f"Error detecting voice: {e}")
+                                traceback.print_exc()
+                                exit()
+                                continue
 
                     frames.append(data)
                 print("")  # newline
                 if not voice_detected:
-                    print("No speech detected. Existing state...")
+                    print("No speech detected. Exiting state...")
                     self.light.turn_off()
                     break
 
