@@ -39,7 +39,20 @@ def preprocess(query: str):
     if is_date:
         return 1, is_date
 
+    is_volume = check_for_volume(query)
+    if is_volume:
+        return 2, is_volume
+
+    # TODO strip "Hey Gandalf" off, just in case
     return 0, query
+
+
+def check_for_volume(query):
+    # TODO why doesn't 100% work?
+    match = re.search(r'set(?: your| the)? volume to (\d+) ?(%|percent)?', query.lower())
+    if match:
+        return float(match.groups()[0]) - 100
+    return None
 
 
 def prepend_timestamp(query, current_time):
@@ -80,7 +93,8 @@ def check_for_date(query, current_time):
 
     if query.lower() in date_queries:
         return random.choice(date_responses).format(date_1=time.strftime("%A, %B", current_time),
-                                                    date_2=number_suffix(int(time.strftime("%d", current_time).lstrip("0"))))
+                                                    date_2=number_suffix(
+                                                        int(time.strftime("%d", current_time).lstrip("0"))))
 
 
 # TODO weather

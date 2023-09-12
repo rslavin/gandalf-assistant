@@ -54,4 +54,3 @@ class Light:
         self.pulse_thread = threading.Thread(target=pulse_led, args=(self.p, self.stop_event))
         self.pulse_thread.daemon = True
         self.pulse_thread.start()
-

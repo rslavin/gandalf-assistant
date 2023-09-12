@@ -6,6 +6,7 @@ import numpy as np
 from scipy.signal import resample
 
 from .state_interface import State
+WAKE_SENSITIVITY = [0.6]
 
 
 def convert_rate(audio, frame_length):
@@ -23,10 +24,12 @@ class Asleep(State):
     def run(self):
         print("Entering Sleep state.")
         dir_path = os.path.dirname(os.path.realpath(__file__))
+        # TODO loop through wakeword files in json file. associate them with sensitivities
         file_path = os.path.join(dir_path, "..", "assets/wakeword.ppn")
         porcupine = pvporcupine.create(
             access_key=os.getenv('PICOVOICE_API_KEY'),
-            keyword_paths=[file_path]
+            keyword_paths=[file_path],
+            sensitivities=WAKE_SENSITIVITY
         )
 
         # Calculate the initial frame length based on Porcupine's requirements

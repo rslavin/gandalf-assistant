@@ -1,80 +1,27 @@
 import wave
 import pyaudio
 import subprocess
-import openai
 import os
 from gpt_client import GptClient
 from preprocessing import preprocess
 from .state_interface import State
 from tts import play_gandalf
-from scipy.signal import resample
 import numpy as np
 import traceback
 import time
 import pvcobra
+from audio_utils import downsample_audio, transcribe_audio, adjust_volume
 
 RATE = 44100  # frequency of microphone
 VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
 AMPLIFICATION_FACTOR = 10
+VOICE_DETECTION_THRESHOLD = 0.75
 CHANNELS = 1
-SILENCE_THRESHOLD = 70
 FRAMES_PER_BUFFER = 1026
 MAX_DURATION = 15  # how long to listen for regardless of voice detection
-PAUSE_TIME = 2  # seconds of pause before listening stops
+ENDING_PAUSE_TIME = 2  # seconds of pause before listening stops
+INITIAL_PAUSE_TIME = 4  # time to wait for first words
 TRANSCRIPTION_FILE = "tmp.wav"
-
-
-def downsample_audio(audio_data, from_rate, to_rate):
-    if not audio_data:
-        return None
-
-    # Convert to numpy array if audio_data is in bytes
-    if isinstance(audio_data, bytes):
-        audio_data = np.frombuffer(audio_data, dtype=np.int16)
-
-    audio_data = np.array(audio_data)
-    ratio = to_rate / from_rate
-    audio_len = len(audio_data)
-    new_len = int(audio_len * ratio)
-    resampled_audio = resample(audio_data, new_len)
-    return np.int16(resampled_audio)
-
-
-def transcribe_audio(file_path):
-    with open(file_path, "rb") as audio_file:
-        # TODO TRANSCRIPTION interface
-        question_text = openai.Audio.transcribe(
-            file=audio_file,
-            model="whisper-1",
-            response_format="text",
-            language="en"
-        )
-    os.remove(file_path)
-    return question_text
-
-
-def frequency_filter(frame, cutoff_low=15, cutoff_high=250, sample_rate=16000):
-    """
-    Uses fast fourier transform to filter out frequencies outside of human speech.
-    :param frame: Frame to filter
-    :param cutoff_low: Lower frequency bound
-    :param cutoff_high: Upper frequency bound
-    :param sample_rate: Sample rate
-    :return: Filtered frame
-    """
-    amplification_factor = 4.5
-    # Perform the FFT
-    sp = np.fft.fft(frame)
-    freq = np.fft.fftfreq(len(sp), 1 / sample_rate)
-
-    # Zero out frequencies outside the desired cutoff range
-    sp[(freq < cutoff_low)] = 0
-    sp[(freq > cutoff_high)] = 0
-
-    # Perform the Inverse FFT to get back to time domain
-    filtered_frame = np.fft.ifft(sp).real
-    filtered_frame *= amplification_factor  # amplify since the filtered audio will no longer be normalized
-    return filtered_frame
 
 
 class Listening(State):
@@ -83,6 +30,8 @@ class Listening(State):
         self.gpt = GptClient()
         self.light = light
         self.cobra_vad = pvcobra.create(access_key=os.getenv('PICOVOICE_API_KEY'))
+        # TODO move this to json file
+        self.volume_adjust = 0
 
     def run(self):
         while True:
@@ -115,13 +64,14 @@ class Listening(State):
                 silence_since = time.time()
                 frame_length = self.cobra_vad.frame_length
                 start_time = time.time()
+                pause_time = INITIAL_PAUSE_TIME
                 while time.time() - start_time <= MAX_DURATION:
                     data = audio_stream.read(FRAMES_PER_BUFFER, exception_on_overflow=False)
                     downsampled_data = downsample_audio(data, RATE, VOICE_DETECTION_RATE)
 
                     if downsampled_data is not None:
                         buffer = np.concatenate((buffer, downsampled_data))
-                        if silence_since is not None and time.time() - silence_since >= PAUSE_TIME:
+                        if silence_since is not None and time.time() - silence_since >= pause_time:
                             break
 
                         # take chunks out of size frame_length for voice detection
@@ -131,9 +81,10 @@ class Listening(State):
                             frame = np.int16(frame * AMPLIFICATION_FACTOR)
 
                             try:
-                                if self.cobra_vad.process(frame) > 0.8:
+                                if self.cobra_vad.process(frame) > VOICE_DETECTION_THRESHOLD:
                                     silence_since = time.time()
                                     voice_detected = True
+                                    pause_time = ENDING_PAUSE_TIME  # reset pause time after first words
                                     print("V", end="", flush=True)
                                 else:
                                     print("-", end="", flush=True)
@@ -175,6 +126,13 @@ class Listening(State):
                     response = question_text
                     answer_time = time.time() - start_time
                     print(f"Local request complete ({answer_time:.2f} seconds)")
+                elif action == 2:  # volume adjust
+                    print(f"Setting volume to {question_text}%.")
+                    self.volume_adjust = question_text
+                    answer_time = time.time() - start_time
+                    print(f"Local request complete ({answer_time:.2f} seconds)")
+                    # TODO play a beep
+                    response = "Done."
                 else:  # get the answer from the llm
                     # send transcribed query to gpt
                     print("Asking LLM...")
@@ -202,6 +160,9 @@ class Listening(State):
                 print(f"Total processing time: {total_time:.2f} seconds")
 
                 if response_voice:
+                    if self.volume_adjust:
+                        print(f"volume: {self.volume_adjust}")
+                        adjust_volume(response_voice, self.volume_adjust)
                     subprocess.call(["xdg-open", response_voice])
                     time.sleep(0.5)
                 else:

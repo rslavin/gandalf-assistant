@@ -44,7 +44,7 @@ class GptClient:
             "content": message,
         })
 
-        # TODO set a timeout
+        # TODO timeout, try https://pypi.org/project/retry/
         chat = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=self.conversation)
         response = chat.choices[0].message.content
         self.conversation.append({
