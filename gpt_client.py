@@ -2,6 +2,9 @@ import openai
 import os
 from timeout_function_decorator.timeout_decorator import timeout
 
+MAX_TOKENS = 4096
+RESPONSE_TOKENS = 250  # how much room to reserve for the response
+
 # TODO move all this to a json file
 PERSONALITY_RULES = [
     "You are not an AI.",
@@ -29,6 +32,11 @@ APP_RULES = [
 ]
 
 
+def count_tokens(text):
+    # Rough approximation of token count
+    return len(text.split())
+
+
 class GptClient:
     def __init__(self):
         openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -36,17 +44,25 @@ class GptClient:
             {"role": "system",
              "content": " ".join(PERSONALITY_RULES + APP_RULES)},
         ]
+        self.total_tokens = count_tokens(self.conversation[-1]['content'])
 
-    @timeout(10)
+    @timeout(15)
     def send_message(self, message):
         self.conversation.append({
             "role": "user",
             "content": message,
         })
+        self.total_tokens += count_tokens(message)
 
-        # TODO timeout, try https://pypi.org/project/retry/
+        # make sure there is room for a response
+        while self.total_tokens > MAX_TOKENS - RESPONSE_TOKENS:
+            removed_message = self.conversation.pop(1)  # don't remove the system message
+            self.total_tokens = count_tokens(removed_message['content'])
+
         chat = openai.ChatCompletion.create(model="gpt-3.5-turbo", messages=self.conversation)
         response = chat.choices[0].message.content
+        self.total_tokens += count_tokens(response)
+
         self.conversation.append({
             "role": "assistant",
             "content": response

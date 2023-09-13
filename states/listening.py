@@ -143,7 +143,7 @@ class Listening(State):
                     start_time = time.time()
                     # TODO LLM interface
                     retries = 0
-                    while retries < MAX_LLM_RETRIES:
+                    while retries <= MAX_LLM_RETRIES:
                         try:
                             response = self.gpt.send_message(question_text)
                             break
@@ -184,7 +184,6 @@ class Listening(State):
                 print(f"Total processing time: {total_time:.2f} seconds")
 
                 if self.volume_adjust:
-                    print(f"volume: {self.volume_adjust}")
                     adjust_volume(response_voice, self.volume_adjust)
                 subprocess.call(["xdg-open", response_voice])
                 time.sleep(0.5)

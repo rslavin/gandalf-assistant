@@ -13,13 +13,13 @@ def preprocess(query: str):
     """
     now = time.localtime()
     invalid_char_regex = r"[©]"
-    query_stripped = query.strip(".?! \t\n")
+    query_stripped = query.strip(".?! \t\n").lower()
     print(f"Preprocessing '{query_stripped}'")
 
-    # TODO "ignore this"
     # empty string or 'never mind'
     alpha_string = ''.join(e for e in query_stripped if e.isalpha())
-    if not len(alpha_string) or alpha_string.lower().endswith(("nevermind", "forgetit", "thankyou")):
+    if not len(alpha_string) or alpha_string.lower().endswith(
+            ("nevermind", "forgetit", "thankyou")) or "ignorethis" in alpha_string:
         return -1, None
 
     # invalid characters (usually means bad speech to text)
@@ -39,8 +39,8 @@ def preprocess(query: str):
     if is_date:
         return 1, is_date
 
-    is_volume = check_for_volume(query)
-    if is_volume:
+    is_volume = check_for_volume(query_stripped)
+    if is_volume is not None:
         return 2, is_volume
 
     # TODO strip "Hey Gandalf" off, just in case
@@ -48,8 +48,7 @@ def preprocess(query: str):
 
 
 def check_for_volume(query):
-    # TODO why doesn't 100% work?
-    match = re.search(r'set(?: your| the)? volume to (\d+) ?(%|percent)?', query.lower())
+    match = re.search(r'set(?: your| the)? volume to (\d+) ?(?:%|percent)?', query)
     if match:
         return float(match.groups()[0]) - 100
     return None
@@ -74,7 +73,7 @@ def check_for_time(query, current_time):
         '{string}.'
     ]
 
-    if query.lower() in time_queries:
+    if query in time_queries:
         return random.choice(time_responses).format(string=time.strftime("%I:%M", current_time).lstrip("0"))
     return None
 
@@ -91,7 +90,7 @@ def check_for_date(query, current_time):
         '{date_1} {date_2}'
     ]
 
-    if query.lower() in date_queries:
+    if query in date_queries:
         return random.choice(date_responses).format(date_1=time.strftime("%A, %B", current_time),
                                                     date_2=number_suffix(
                                                         int(time.strftime("%d", current_time).lstrip("0"))))
