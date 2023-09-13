@@ -4,8 +4,10 @@ from contextlib import closing
 import os
 import sys
 from tempfile import gettempdir
+from timeout_function_decorator.timeout_decorator import timeout
 
 
+@timeout(8)
 def play_gandalf(text):
     session = Session(aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
                       aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'), region_name='us-east-1')

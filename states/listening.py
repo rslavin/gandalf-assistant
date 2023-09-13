@@ -22,6 +22,8 @@ MAX_DURATION = 15  # how long to listen for regardless of voice detection
 ENDING_PAUSE_TIME = 2  # seconds of pause before listening stops
 INITIAL_PAUSE_TIME = 4  # time to wait for first words
 TRANSCRIPTION_FILE = "tmp.wav"
+MAX_LLM_RETRIES = 2  # max llm timeouts
+MAX_TTS_RETRIES = 2  # max llm timeouts
 
 
 class Listening(State):
@@ -116,6 +118,7 @@ class Listening(State):
 
                 # PROCESS ANSWER
                 start_time = time.time()
+                response = "-1"
                 action, question_text = preprocess(question_text)
                 if action == -1:  # drop
                     print("Filtered out locally.")
@@ -134,39 +137,57 @@ class Listening(State):
                     # TODO play a beep
                     response = "Done."
                 else:  # get the answer from the llm
-                    # send transcribed query to gpt
+                    # send transcribed query to llm
                     print("Asking LLM...")
                     print(question_text)
                     start_time = time.time()
                     # TODO LLM interface
-                    response = self.gpt.send_message(question_text)
-                    if response == "-1":
+                    retries = 0
+                    while retries < MAX_LLM_RETRIES:
+                        try:
+                            response = self.gpt.send_message(question_text)
+                            break
+                        except TimeoutError:
+                            print(f"LLM timeout. Retrying {MAX_LLM_RETRIES - retries} more times...")
+                            retries += 1
+                    if retries >= MAX_LLM_RETRIES or response == "-1":
                         self.light.turn_off()
                         return False
+
                     answer_time = time.time() - start_time
-                    print(f"GPT request complete ({answer_time:.2f} seconds)")
+                    print(f"LLM request complete ({answer_time:.2f} seconds)")
                 print(f"Response: {response}")
 
                 # CONVERT ANSWER TO SPEECH
                 self.light.turn_off()
                 # TODO TTS interface
-                print("Converting gpt text to speech...")
+                print("Converting LLM text to speech...")
                 start_time = time.time()
-                response_voice = play_gandalf(response)
+                retries = 0
+                response_voice = None
+                while retries <= MAX_TTS_RETRIES:
+                    try:
+                        response_voice = play_gandalf(response)
+                        break
+                    except TimeoutError:
+                        print(f"LLM timeout. Retrying {MAX_TTS_RETRIES - retries} more times...")
+                        retries += 1
+                if retries >= MAX_TTS_RETRIES or not response_voice:
+                    self.light.turn_off()
+                    print(f"Error playing {response_voice}.")
+                    return False
+
                 tts_time = time.time() - start_time
                 print(f"Text to speech complete ({tts_time:.2f} seconds)")
 
                 total_time = transcribe_time + answer_time + tts_time
                 print(f"Total processing time: {total_time:.2f} seconds")
 
-                if response_voice:
-                    if self.volume_adjust:
-                        print(f"volume: {self.volume_adjust}")
-                        adjust_volume(response_voice, self.volume_adjust)
-                    subprocess.call(["xdg-open", response_voice])
-                    time.sleep(0.5)
-                else:
-                    print(f"Error playing {response_voice}.")
+                if self.volume_adjust:
+                    print(f"volume: {self.volume_adjust}")
+                    adjust_volume(response_voice, self.volume_adjust)
+                subprocess.call(["xdg-open", response_voice])
+                time.sleep(0.5)
 
             except Exception as e:
                 print(f"An error occurred: {e}")
