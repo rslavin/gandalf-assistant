@@ -51,7 +51,7 @@ class GptClient:
         self.total_tokens = count_tokens(self.conversation[-1]['content'])
 
     @timeout(15)
-    def send_message(self, message):
+    def get_response(self, message):
         self.conversation.append({
             "role": "user",
             "content": message,
@@ -79,7 +79,8 @@ class GptClient:
 
         return response
 
-    def send_message_stream(self, message):
+    @timeout(8)
+    def get_response_generator(self, message):
         self.conversation.append({
             "role": "user",
             "content": message,
@@ -106,28 +107,17 @@ class GptClient:
                 sentence_buffer.append(content)
 
                 # Check if the buffer contains a full sentence
-                if any(char in '.!?' for char in content): # TODO end of sentence AND not a short sentence
-                    full_sentence = ''.join(sentence_buffer)
-                    try:
-                        # TODO make this non blocking so it can start gathering the next part.
-                        audio_gen = tts.play_gandalf_generator(full_sentence)
-                        if audio_gen:
-                            tts.stream_audio(audio_gen, volume=0.5)
-                        else:
-                            print("Audio generator returned None.")
-                    except Exception as e:
-                        print(f"An error occurred: {e}")
+                if any(char in '.!?' for char in content):  # TODO end of sentence AND not a short sentence
+                    sentence_chunk = ''.join(sentence_buffer)  # TODO + ' <break time="1s"/>'
 
-                    print(full_sentence)
-                    response += full_sentence
+                    response += sentence_chunk
+                    print(f'\t"{sentence_chunk.strip()}"')
+                    yield sentence_chunk
                     sentence_buffer = []
+        yield None
 
         self.total_tokens += count_tokens(response)
         self.conversation.append({
             "role": "assistant",
             "content": response
         })
-
-        return response
-
-

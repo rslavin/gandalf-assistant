@@ -14,7 +14,6 @@ def preprocess(query: str):
     now = time.localtime()
     invalid_char_regex = r"[©]"
     query_stripped = query.strip(".?! \t\n").lower()
-    print(f"Preprocessing '{query_stripped}'")
 
     # empty string or 'never mind'
     alpha_string = ''.join(e for e in query_stripped if e.isalpha())
@@ -50,7 +49,8 @@ def preprocess(query: str):
 def check_for_volume(query):
     match = re.search(r'set(?: your| the)? volume to (\d+) ?(?:%|percent)?', query)
     if match:
-        return float(match.groups()[0]) - 100
+        return float(match.group(0)) / 100  # percentage multiplier
+        # return float(match.group(0)) - 100  # percentage reduction
     return None
 
 
