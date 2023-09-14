@@ -238,6 +238,11 @@ class Listening(State):
                 audio_thread = threading.Thread(target=enqueue_audio)
                 stream_thread = threading.Thread(target=stream_audio_chunks)
 
+                # set threads to terminate with main program
+                audio_thread.daemon = True
+                text_thread.daemon = True
+                stream_thread.daemon = True
+
                 text_thread.start()
                 audio_thread.start()
                 stream_thread.start()
