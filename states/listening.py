@@ -5,7 +5,7 @@ import os
 from gpt_client import GptClient
 from preprocessing import preprocess
 from .state_interface import State
-from tts import play_gandalf
+from tts import play_gandalf_generator, stream_audio
 import numpy as np
 import traceback
 import time
@@ -145,7 +145,7 @@ class Listening(State):
                     retries = 0
                     while retries <= MAX_LLM_RETRIES:
                         try:
-                            response = self.gpt.send_message(question_text)
+                            response = self.gpt.send_message_stream(question_text)
                             break
                         except TimeoutError:
                             print(f"LLM timeout. Retrying {MAX_LLM_RETRIES - retries} more times...")
@@ -161,31 +161,35 @@ class Listening(State):
                 # CONVERT ANSWER TO SPEECH
                 self.light.turn_off()
                 # TODO TTS interface
-                print("Converting LLM text to speech...")
-                start_time = time.time()
-                retries = 0
-                response_voice = None
-                while retries <= MAX_TTS_RETRIES:
-                    try:
-                        response_voice = play_gandalf(response)
-                        break
-                    except TimeoutError:
-                        print(f"LLM timeout. Retrying {MAX_TTS_RETRIES - retries} more times...")
-                        retries += 1
-                if retries >= MAX_TTS_RETRIES or not response_voice:
-                    self.light.turn_off()
-                    print(f"Error playing {response_voice}.")
-                    return False
+                # print("Converting LLM text to speech...")
+                # start_time = time.time()
+                # retries = 0
+                # response_voice_generator = None
+                # while retries <= MAX_TTS_RETRIES:
+                #     try:
+                #         response_voice_generator = play_gandalf_generator(response)
+                #         stream_audio(response_voice_generator)
+                #         break
+                #     except TimeoutError:
+                #         print(f"LLM timeout. Retrying {MAX_TTS_RETRIES - retries} more times...")
+                #         retries += 1
+                # if retries >= MAX_TTS_RETRIES or not response_voice_generator:
+                #     self.light.turn_off()
+                #     print(f"Error playing {response_voice_generator}.")
+                #     return False
+                #
+                # if response_voice_generator == 1:
+                #     return True
+                #
+                # tts_time = time.time() - start_time
+                # print(f"Text to speech complete ({tts_time:.2f} seconds)")
+                #
+                # total_time = transcribe_time + answer_time + tts_time
+                # print(f"Total processing time: {total_time:.2f} seconds")
 
-                tts_time = time.time() - start_time
-                print(f"Text to speech complete ({tts_time:.2f} seconds)")
-
-                total_time = transcribe_time + answer_time + tts_time
-                print(f"Total processing time: {total_time:.2f} seconds")
-
-                if self.volume_adjust:
-                    adjust_volume(response_voice, self.volume_adjust)
-                subprocess.call(["xdg-open", response_voice])
+                # if self.volume_adjust:
+                #     adjust_volume(response_voice_generator, self.volume_adjust)
+                # subprocess.call(["xdg-open", response_voice_generator])
                 time.sleep(0.5)
 
             except Exception as e:
