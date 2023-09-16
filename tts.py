@@ -3,11 +3,8 @@ from botocore.exceptions import BotoCoreError, ClientError
 from contextlib import closing
 import os
 import sys
-import numpy as np
-import sounddevice as sd
 from tempfile import gettempdir
 from timeout_function_decorator.timeout_decorator import timeout
-import time
 
 
 @timeout(8)
@@ -78,18 +75,4 @@ def audio_chunk_generator(text):
         yield None
 
 
-def stream_audio(audio_chunk, volume=0.5, samplerate=16000):
-    # TODO first chunk seems to have a break in it
-    # Make sure the chunk length is a multiple of 2 (for np.int16)
-    if len(audio_chunk) % 2 != 0:
-        audio_chunk = audio_chunk[:-1]
 
-    # Convert byte data to numpy array
-    audio_array = np.frombuffer(audio_chunk, dtype=np.int16)
-
-    # Change volume by scaling amplitude
-    audio_array = np.int16(audio_array * volume)
-
-    # Play audio chunk
-    sd.play(audio_array, samplerate=samplerate)
-    sd.wait()

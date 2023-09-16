@@ -11,7 +11,7 @@ import time
 import queue
 import threading
 import pvcobra
-from audio_utils import downsample_audio, transcribe_audio
+from audio_utils import downsample_audio, transcribe_audio, stream_audio
 
 RATE = 44100  # frequency of microphone
 VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
@@ -23,9 +23,10 @@ MAX_DURATION = 15  # how long to listen for regardless of voice detection
 ENDING_PAUSE_TIME = 1  # seconds of pause before listening stops
 QUEUE_TIMEOUT = 5  # how long for pipeline to wait for an empty queue
 INITIAL_PAUSE_TIME = 4  # time to wait for first words
-TRANSCRIPTION_FILE = "tmp.wav"
+TRANSCRIPTION_FILE = "transcription.wav"
 MAX_LLM_RETRIES = 2  # max llm timeouts
-MAX_TTS_RETRIES = 2  # max llm timeouts
+MAX_TTS_RETRIES = 2  # max tts timeouts
+MAX_STT_RETRIES = 2  # max stt timeouts (this is done locally, but requires authentication)
 DEFAULT_VOLUME = 0.75
 
 
@@ -116,7 +117,21 @@ class Listening(State):
                 # TRANSCRIBE
                 print("Transcribing audio...")
                 start_time = time.time()
-                question_text = transcribe_audio(TRANSCRIPTION_FILE)
+                retries = 0
+                question_text = ""
+                while retries < MAX_STT_RETRIES:
+                    try:
+                        question_text = transcribe_audio(TRANSCRIPTION_FILE)
+                        break
+                    except TimeoutError:
+                        print(f"TTS timeout. Retrying {MAX_STT_RETRIES - retries - 1} more times...")
+                        retries += 1
+                    except Exception as e:
+                        print(f"Unknown error when attempting STT: {e}")
+                        return False
+                if not question_text:
+                    print("Unable to connect to STT service.")
+                    return False
                 question_text = question_text.strip('\n')
                 transcribe_time = time.time() - start_time
                 print(f"Transcription complete ({transcribe_time:.2f} seconds)")
@@ -137,7 +152,7 @@ class Listening(State):
                     print("Answering locally...")
                 elif action == 2:  # volume adjust
                     response = "Done."
-                    print(f"Setting volume to {question_text}%.")
+                    print(f"Setting volume to {float(question_text) * 100}%.")
                     self.volume_multiplier = question_text
                 else:
                     print(f'Asking LLM "{question_text}"...')
@@ -155,7 +170,6 @@ class Listening(State):
 
                 start_time = time.time()
 
-                # TODO cleanup better on keyboardinterrupt
                 # thread functions
                 def enqueue_text():
                     if response is not None:
@@ -163,7 +177,7 @@ class Listening(State):
                         text_queue.put(None)
                     else:  # ask LLM
                         retries = 0
-                        while retries <= MAX_LLM_RETRIES:
+                        while retries < MAX_LLM_RETRIES:
                             try:
                                 response_generator = self.llm.get_response_generator(question_text)
                                 for response_chunk in response_generator:
@@ -172,7 +186,10 @@ class Listening(State):
                                         break
                                 break  # generator has been fully consumed, so exit the loop
                             except TimeoutError:
-                                print(f"LLM timeout. Retrying {MAX_LLM_RETRIES - retries} more times...")
+                                print(f"LLM timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")
+                                retries += 1
+                            except Exception as e:
+                                print(f"Unknown error when attempting LLM request: {e}")
                                 retries += 1
                             finally:
                                 text_queue.put(None)
@@ -183,7 +200,7 @@ class Listening(State):
                     if not shared_vars['timeout_flag']:
                         retries = 0
                         first_chunk = True
-                        while retries <= MAX_TTS_RETRIES:
+                        while retries < MAX_TTS_RETRIES:
                             try:
                                 response_chunk = text_queue.get(timeout=QUEUE_TIMEOUT)
                                 if response_chunk is not None:
@@ -197,12 +214,15 @@ class Listening(State):
                                 for audio_chunk in tts.audio_chunk_generator(response_chunk):
                                     voice_queue.put(audio_chunk)
                             except TimeoutError:
-                                print(f"TTS timeout. Retrying {MAX_LLM_RETRIES - retries} more times...")
+                                print(f"TTS timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")
                                 retries += 1
                             except queue.Empty:
                                 # check if there was a timeout and, if so, terminate
                                 if shared_vars['timeout_flag']:
                                     break
+                            except Exception as e:
+                                print(f"Unknown error when attempting TTS request: {e}")
+                                retries += 1
 
                         voice_queue.put(None)
                         if retries > MAX_TTS_RETRIES:
@@ -226,7 +246,7 @@ class Listening(State):
                                         print(
                                             f"Total time since query: {shared_vars['audio_received_time'] - proc_start_time:.2f} seconds")
                                         first_chunk = False
-                                    tts.stream_audio(audio_chunk, volume=self.volume_multiplier)
+                                    stream_audio(audio_chunk, volume=self.volume_multiplier)
                             except queue.Empty:
                                 if shared_vars['timeout_flag']:
                                     break
@@ -263,6 +283,10 @@ class Listening(State):
                 return False
 
             finally:
+                try:
+                    os.remove(TRANSCRIPTION_FILE)
+                except OSError:
+                    pass
                 if audio_stream is not None:
                     audio_stream.stop_stream()
                     audio_stream.close()

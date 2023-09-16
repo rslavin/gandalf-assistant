@@ -47,10 +47,13 @@ def preprocess(query: str):
 
 
 def check_for_volume(query):
-    match = re.search(r'set(?: your| the)? volume to (\d+) ?(?:%|percent)?', query)
+    match = re.search(r'set(?: your| the)? volume to ([^\s%]+) ?(?:%|percent)?', query)
     if match:
-        return float(match.group(0)) / 100  # percentage multiplier
-        # return float(match.group(0)) - 100  # percentage reduction
+        percent = match.group(1)
+        if not percent.isnumeric():
+            percent = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"].index(percent)
+
+        return float(percent) / 100  # percentage multiplier
     return None
 
 

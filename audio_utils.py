@@ -3,8 +3,10 @@ import numpy as np
 from scipy.signal import resample
 import os
 import openai
+import sounddevice as sd
 from pydub import AudioSegment
 import math
+from timeout_function_decorator.timeout_decorator import timeout
 
 
 def amplify_wav(file_path, amplification_factor):
@@ -74,6 +76,7 @@ def frequency_filter(frame, cutoff_low=15, cutoff_high=250, sample_rate=16000):
     return filtered_frame
 
 
+@timeout(3)
 def transcribe_audio(file_path):
     with open(file_path, "rb") as audio_file:
         # TODO TRANSCRIPTION interface
@@ -86,3 +89,20 @@ def transcribe_audio(file_path):
         )
     os.remove(file_path)
     return question_text
+
+
+def stream_audio(audio_chunk, volume=0.5, samplerate=16000):
+    # TODO first chunk seems to have a break in it
+    # Make sure the chunk length is a multiple of 2 (for np.int16)
+    if len(audio_chunk) % 2 != 0:
+        audio_chunk = audio_chunk[:-1]
+
+    # Convert byte data to numpy array
+    audio_array = np.frombuffer(audio_chunk, dtype=np.int16)
+
+    # Change volume by scaling amplitude
+    audio_array = np.int16(audio_array * volume)
+
+    # Play audio chunk
+    sd.play(audio_array, samplerate=samplerate)
+    sd.wait()

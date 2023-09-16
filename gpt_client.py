@@ -1,7 +1,6 @@
 import openai
 import os
 from timeout_function_decorator.timeout_decorator import timeout
-import tts
 
 MAX_MODEL_TOKENS = 4096  # max tokens the model can handle
 MAX_RESPONSE_TOKENS = 250  # max tokens in response
@@ -89,7 +88,7 @@ class GptClient:
 
         # make sure there is room for a response
         while self.total_tokens > MAX_MODEL_TOKENS - MAX_RESPONSE_TOKENS:
-            removed_message = self.conversation.pop(1)
+            removed_message = self.conversation.pop(1)  # don't remove the system message
             self.total_tokens = count_tokens(removed_message['content'])
 
         sentence_buffer = []
