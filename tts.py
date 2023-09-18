@@ -8,7 +8,7 @@ from timeout_function_decorator.timeout_decorator import timeout
 
 
 @timeout(8)
-def play_gandalf(text):
+def play_gandalf(voice_id, voice_engine, text):
     session = Session(aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
                       aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'), region_name='us-east-1')
     polly = session.client("polly")
@@ -16,7 +16,7 @@ def play_gandalf(text):
     try:
         # Request speech synthesis
         response = polly.synthesize_speech(Text=text, OutputFormat="mp3",
-                                           VoiceId="Brian", Engine="neural")
+                                           VoiceId=voice_id, Engine=voice_engine)
     except (BotoCoreError, ClientError) as error:
         # The service returned an error, exit gracefully
         print(error)
@@ -48,7 +48,7 @@ def play_gandalf(text):
 
 
 @timeout(8)
-def audio_chunk_generator(text):
+def audio_chunk_generator(voice_id, voice_engine, text):
     session = Session(aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
                       aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'), region_name='us-east-1')
     polly = session.client("polly")
@@ -56,7 +56,7 @@ def audio_chunk_generator(text):
     try:
         # Request speech synthesis
         response = polly.synthesize_speech(Text=text, OutputFormat="pcm",
-                                           VoiceId="Brian", Engine="neural")
+                                           VoiceId=voice_id, Engine=voice_engine)
     except (BotoCoreError, ClientError) as error:
         print(error)
         return None

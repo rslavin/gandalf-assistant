@@ -32,8 +32,9 @@ DEFAULT_VOLUME = 0.75
 
 class Listening(State):
 
-    def __init__(self, light):
-        self.llm = GptClient()
+    def __init__(self, light, persona):
+        self.llm = GptClient(persona.personality_rules)
+        self.persona = persona
         self.light = light
         self.cobra_vad = pvcobra.create(access_key=os.getenv('PICOVOICE_API_KEY'))
         # TODO move this to json file
@@ -211,7 +212,8 @@ class Listening(State):
                                         first_chunk = False
                                 else:
                                     break
-                                for audio_chunk in tts.audio_chunk_generator(response_chunk):
+                                for audio_chunk in tts.audio_chunk_generator(self.persona.voice_id,
+                                                                             self.persona.voice_engine, response_chunk):
                                     voice_queue.put(audio_chunk)
                             except TimeoutError:
                                 print(f"TTS timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")

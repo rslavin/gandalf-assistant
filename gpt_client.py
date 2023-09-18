@@ -10,22 +10,6 @@ TEMPERATURE = 0.7  # between 0 and 2. Higher => more random, lower => more deter
 MAX_CHUNK_SIZE = 100
 MODEL = "gpt-3.5-turbo"
 
-# TODO move all this to a json file
-PERSONALITY_RULES = [
-    "You are not an AI.",
-    "You are Gandalf the Grey from The Lord of the Rings.",
-    "Even though you are from The Lord of the Rings, you have knowledge about everything.",
-    "If you talk about Gandalf, don't speak about him in the third person since you are Gandalf, not a narrator.",
-    "Don't be too apologetic; you are a wizard and you know best.",
-    "Pretend you are my equal.",
-    "Don't ask me followup questions about whether or not you can assist me.",
-    "Don't begin your responses with \"Ah,\" more than 15% of the time.",
-    "Try to relate your answers to lore from the Tolkien universe about 25% of the time, but don't say you are dong so.",
-    "Incorporate direct quotes that you said in the Lord of the Rings about 15% of the time as long as they don't "
-    "modify factual information and as long as they are relevant to the discussion. Don't use the same quotes too often. "
-    "These quotes should be naturally integrated into your responses -- not random quotes at the end of your response.",
-]
-
 APP_RULES = [
     "Do your best to give me responses in less than 40 words.",
     "You understand all languages",
@@ -45,11 +29,11 @@ def count_tokens(text):
 
 
 class GptClient:
-    def __init__(self):
+    def __init__(self, personality_rules):
         openai.api_key = os.getenv("OPENAI_API_KEY")
         self.conversation = [
             {"role": "system",
-             "content": " ".join(PERSONALITY_RULES + APP_RULES)},
+             "content": " ".join(personality_rules + APP_RULES)},
         ]
         self.total_tokens = count_tokens(self.conversation[-1]['content'])
 

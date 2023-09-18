@@ -12,6 +12,9 @@ WAKE_SENSITIVITY = [0.6]
 
 class Asleep(State):
 
+    def __init__(self, wakewords):
+        self.wakewords = wakewords
+
     def run(self):
         print("Entering Sleep state.")
         dir_path = os.path.dirname(os.path.realpath(__file__))
