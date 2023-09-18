@@ -2,19 +2,12 @@ import os
 import struct
 import pyaudio
 import pvporcupine
-import numpy as np
-from scipy.signal import resample
+from audio_utils import convert_frame_length, downsample_audio
 from .state_interface import State
 
 MIC_RATE = 44100  # frequency of microphone
 VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
 WAKE_SENSITIVITY = [0.6]
-
-
-def convert_rate(audio, frame_length):
-    audio_np = np.array(audio, dtype=np.float32)
-    audio_resampled = resample(audio_np, frame_length)
-    return np.array(audio_resampled, dtype=np.int16)
 
 
 class Asleep(State):
@@ -47,8 +40,7 @@ class Asleep(State):
             audio = struct.unpack_from("h" * initial_frame_length, audio)
 
             # resample to 44100 because of mic I'm using
-            # TODO this is duplicated in audio_utils.downsample_audio
-            audio_resampled = convert_rate(audio, porcupine.frame_length)
+            audio_resampled = convert_frame_length(audio, porcupine.frame_length)
 
             # feed resampled audio into porcupine
             # TODO add keywords. Return value is the one detected

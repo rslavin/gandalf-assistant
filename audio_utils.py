@@ -23,24 +23,17 @@ def amplify_wav(file_path, amplification_factor):
 
 
 def adjust_volume(file_path, percentage, file_format="mp3"):
-    # Load the audio file
     sound = AudioSegment.from_file(file_path, format=file_format)
 
-    # Calculate the gain in dB
+    # calculate the gain in dB
     gain_db = 20 * math.log10(1 + percentage / 100)
 
-    # Apply the gain
     amplified_sound = sound.apply_gain(gain_db)
-
-    # Save the new audio file (here, it overwrites the original; you may choose to save as a different file)
     amplified_sound.export(file_path, format=file_format)
 
 
 def downsample_audio(audio_data, from_rate, to_rate):
-    if not audio_data:
-        return None
-
-    # Convert to numpy array if audio_data is in bytes
+    # convert to numpy array if audio_data is in bytes
     if isinstance(audio_data, bytes):
         audio_data = np.frombuffer(audio_data, dtype=np.int16)
 
@@ -50,6 +43,12 @@ def downsample_audio(audio_data, from_rate, to_rate):
     new_len = int(audio_len * ratio)
     resampled_audio = resample(audio_data, new_len)
     return np.int16(resampled_audio)
+
+
+def convert_frame_length(audio_data, target_frame_length):
+    audio_data = np.array(audio_data, dtype=np.float32)
+    resampled_audio = resample(audio_data, target_frame_length)
+    return np.array(resampled_audio, dtype=np.int16)
 
 
 def frequency_filter(frame, cutoff_low=15, cutoff_high=250, sample_rate=16000):
