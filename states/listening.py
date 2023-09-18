@@ -13,13 +13,13 @@ import threading
 import pvcobra
 from audio_utils import downsample_audio, transcribe_audio, stream_audio
 
-RATE = 44100  # frequency of microphone
+MIC_RATE = 44100  # frequency of microphone
 VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
-AMPLIFICATION_FACTOR = 10
+MIC_AMPLIFICATION_FACTOR = 10
 VOICE_DETECTION_THRESHOLD = 0.75
 CHANNELS = 1
 FRAMES_PER_BUFFER = 1026
-MAX_DURATION = 15  # how long to listen for regardless of voice detection
+MAX_DURATION = 25  # how long to listen for regardless of voice detection
 ENDING_PAUSE_TIME = 1  # seconds of pause before listening stops
 QUEUE_TIMEOUT = 5  # how long for pipeline to wait for an empty queue
 INITIAL_PAUSE_TIME = 4  # time to wait for first words
@@ -50,7 +50,7 @@ class Listening(State):
 
             try:
                 audio_stream = pa.open(
-                    rate=RATE,
+                    rate=MIC_RATE,
                     channels=CHANNELS,
                     format=pyaudio.paInt16,
                     input=True,
@@ -60,7 +60,7 @@ class Listening(State):
                 wf = wave.open(TRANSCRIPTION_FILE, 'wb')
                 wf.setnchannels(CHANNELS)
                 wf.setsampwidth(pa.get_sample_size(pyaudio.paInt16))
-                wf.setframerate(RATE)
+                wf.setframerate(MIC_RATE)
 
                 # record
                 audio_stream.start_stream()
@@ -73,7 +73,7 @@ class Listening(State):
                 pause_time = INITIAL_PAUSE_TIME
                 while time.time() - start_time <= MAX_DURATION:
                     data = audio_stream.read(FRAMES_PER_BUFFER, exception_on_overflow=False)
-                    downsampled_data = downsample_audio(data, RATE, VOICE_DETECTION_RATE)
+                    downsampled_data = downsample_audio(data, MIC_RATE, VOICE_DETECTION_RATE)
 
                     if downsampled_data is not None:
                         buffer = np.concatenate((buffer, downsampled_data))
@@ -84,7 +84,7 @@ class Listening(State):
                         while len(buffer) >= frame_length:
                             frame = buffer[:frame_length]
                             buffer = buffer[frame_length:]
-                            frame = np.int16(frame * AMPLIFICATION_FACTOR)
+                            frame = np.int16(frame * MIC_AMPLIFICATION_FACTOR)
 
                             try:
                                 if self.cobra_vad.process(frame) > VOICE_DETECTION_THRESHOLD:
@@ -124,7 +124,7 @@ class Listening(State):
                         question_text = transcribe_audio(TRANSCRIPTION_FILE)
                         break
                     except TimeoutError:
-                        print(f"TTS timeout. Retrying {MAX_STT_RETRIES - retries - 1} more times...")
+                        print(f"STT timeout. Retrying {MAX_STT_RETRIES - retries - 1} more times...")
                         retries += 1
                     except Exception as e:
                         print(f"Unknown error when attempting STT: {e}")

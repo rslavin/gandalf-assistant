@@ -1,11 +1,14 @@
 import openai
+import regex as re
 import os
 from timeout_function_decorator.timeout_decorator import timeout
+from tiktoken import encoding_for_model
 
 MAX_MODEL_TOKENS = 4096  # max tokens the model can handle
 MAX_RESPONSE_TOKENS = 250  # max tokens in response
-TEMPERATURE = 0.8  # between 0 and 2. Higher => more random, lower => more deterministic.
+TEMPERATURE = 0.7  # between 0 and 2. Higher => more random, lower => more deterministic.
 MAX_CHUNK_SIZE = 100
+MODEL = "gpt-3.5-turbo"
 
 # TODO move all this to a json file
 PERSONALITY_RULES = [
@@ -16,7 +19,7 @@ PERSONALITY_RULES = [
     "Don't be too apologetic; you are a wizard and you know best.",
     "Pretend you are my equal.",
     "Don't ask me followup questions about whether or not you can assist me.",
-    "Don't begin your responses with \"Ah,\" more than 25% of the time.",
+    "Don't begin your responses with \"Ah,\" more than 15% of the time.",
     "Try to relate your answers to lore from the Tolkien universe about 25% of the time, but don't say you are dong so.",
     "Incorporate direct quotes that you said in the Lord of the Rings about 15% of the time as long as they don't "
     "modify factual information and as long as they are relevant to the discussion. Don't use the same quotes too often. "
@@ -28,7 +31,8 @@ APP_RULES = [
     "You understand all languages",
     "I am communicating with you through a speech to text engine which may not always hear me correctly. Adjust for "
     "this, but don't tell me you're adjusting.",
-    "If a message I send you is indecipherable, just tell me '-1' with no other text as your response.",
+    "If a message I send you is indecipherable or doesn't make sense, just tell me '-1' with no other text as your "
+    "response. In such a case, it is possible you are hearing me talking to someone else.",
     "Your responses will be read to me through a text to speech engine so I won't be able to see your text.",
     "If I make a spelling mistake, don't point it out.",
     "I will sometimes use the NATO phonetic alphabet.",
@@ -36,8 +40,8 @@ APP_RULES = [
 
 
 def count_tokens(text):
-    # Rough approximation of token count
-    return len(text.split())
+    encoding = encoding_for_model(MODEL)
+    return len(encoding.encode(text))
 
 
 class GptClient:
@@ -63,7 +67,7 @@ class GptClient:
             self.total_tokens = count_tokens(removed_message['content'])
 
         chat = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+            model=MODEL,
             messages=self.conversation,
             temperature=TEMPERATURE,
             max_tokens=MAX_RESPONSE_TOKENS
@@ -93,6 +97,7 @@ class GptClient:
 
         sentence_buffer = []
         response = ""
+        content = ""
         for chunk in openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=self.conversation,
@@ -106,6 +111,9 @@ class GptClient:
                 sentence_buffer.append(content)
 
                 # Check if the buffer contains a full sentence
+                # TODO this regex would work better except for the last iteration. Since we're dealing with a
+                # TODO generator, we can't know if it's the end of the string. chars appear one by one.
+                # if re.match(r"[\.?!]\B", content) or content_gen:
                 if any(char in '.!?' for char in content):  # TODO end of sentence AND not a short sentence
                     sentence_chunk = ''.join(sentence_buffer)  # TODO + ' <break time="1s"/>'
 
@@ -113,6 +121,11 @@ class GptClient:
                     print(f'\t"{sentence_chunk.strip()}"')
                     yield sentence_chunk
                     sentence_buffer = []
+                    content = ""
+        if content and content not in ["1", "-1"]:  # anything left over that wasn't identified as a sentence
+            print(f'\t"{content}"')
+            response += content
+            yield content
         yield None
 
         self.total_tokens += count_tokens(response)

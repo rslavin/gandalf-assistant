@@ -4,19 +4,17 @@ import pyaudio
 import pvporcupine
 import numpy as np
 from scipy.signal import resample
-
 from .state_interface import State
+
+MIC_RATE = 44100  # frequency of microphone
+VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
 WAKE_SENSITIVITY = [0.6]
 
 
 def convert_rate(audio, frame_length):
-    # Convert to numpy array for resampling
     audio_np = np.array(audio, dtype=np.float32)
-    # Resample down to 16000 Hz
     audio_resampled = resample(audio_np, frame_length)
-    # Convert resampled audio back to int16
-    audio_resampled = np.array(audio_resampled, dtype=np.int16)
-    return audio_resampled
+    return np.array(audio_resampled, dtype=np.int16)
 
 
 class Asleep(State):
@@ -33,16 +31,15 @@ class Asleep(State):
         )
 
         # Calculate the initial frame length based on Porcupine's requirements
-        initial_frame_length = int(porcupine.frame_length * (44100 / 16000))
+        initial_frame_length = int(porcupine.frame_length * (MIC_RATE / VOICE_DETECTION_RATE))
 
         pa = pyaudio.PyAudio()
         audio_stream = pa.open(
-            rate=44100,  # porcupine.sample_rate (16000) is not supported by the mic I'm using
+            rate=MIC_RATE,  # porcupine.sample_rate # (16000) is not supported by the mic I'm using
             channels=1,
             format=pyaudio.paInt16,
             input=True,
             frames_per_buffer=initial_frame_length,  # porcupine.frame_length,
-            # input_device_index=self.i2s_index
         )
 
         while True:
@@ -50,9 +47,12 @@ class Asleep(State):
             audio = struct.unpack_from("h" * initial_frame_length, audio)
 
             # resample to 44100 because of mic I'm using
+            # TODO this is duplicated in audio_utils.downsample_audio
             audio_resampled = convert_rate(audio, porcupine.frame_length)
 
-            # Feed resampled audio into porcupine
+            # feed resampled audio into porcupine
+            # TODO add keywords. Return value is the one detected
+            # TODO dynamically filter them out here based on persona
             if porcupine.process(audio_resampled) >= 0:
                 print("Wake word detected!")
                 pa.close(audio_stream)
