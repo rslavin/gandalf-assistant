@@ -6,6 +6,8 @@ import sys
 from tempfile import gettempdir
 from timeout_function_decorator.timeout_decorator import timeout
 
+SPEECH_RATE = 120  # TODO move this to personas
+
 
 @timeout(8)
 def play_gandalf(voice_id, voice_engine, text):
@@ -55,7 +57,8 @@ def audio_chunk_generator(voice_id, voice_engine, text):
 
     try:
         # Request speech synthesis
-        response = polly.synthesize_speech(Text=text, OutputFormat="pcm",
+        text = f'<speak><prosody rate="{SPEECH_RATE}%">{text}</prosody></speak>'
+        response = polly.synthesize_speech(Text=text, TextType="ssml", OutputFormat="pcm",
                                            VoiceId=voice_id, Engine=voice_engine)
     except (BotoCoreError, ClientError) as error:
         print(error)

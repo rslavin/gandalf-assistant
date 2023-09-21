@@ -6,19 +6,23 @@ from tiktoken import encoding_for_model
 
 MAX_MODEL_TOKENS = 4096  # max tokens the model can handle
 MAX_RESPONSE_TOKENS = 250  # max tokens in response
+# TODO move temperature to personas
 TEMPERATURE = 0.7  # between 0 and 2. Higher => more random, lower => more deterministic.
 MAX_CHUNK_SIZE = 100
-MODEL = "gpt-3.5-turbo"
+# MODEL = "gpt-3.5-turbo"
+MODEL = "gpt-4"
 
 APP_RULES = [
     "Do your best to give me responses in less than 40 words.",
     "You understand all languages",
     "I am communicating with you through a speech to text engine which may not always hear me correctly. Adjust for "
     "this, but don't tell me you're adjusting.",
-    "If a message I send you is indecipherable or doesn't make sense, just tell me '-1' with no other text as your "
-    "response. In such a case, it is possible you are hearing me talking to someone else.",
-    "Your responses will be read to me through a text to speech engine so I won't be able to see your text.",
+    "If a query appears nonsensical, likely due to speech-to-text errors or ambient noise, respond with '-1' to "
+    "indicate the issue and include no other text."
+    "In such a case, it is possible you are hearing me talking to someone else.",
+    "Be aware that I will be using a speech-to-text engine that may not always be accurate.",
     "If I make a spelling mistake, don't point it out.",
+    "Also, prompt me occasionally with relevant or interesting questions to foster a two-way conversation",
     "I will sometimes use the NATO phonetic alphabet.",
 ]
 
@@ -31,6 +35,7 @@ def count_tokens(text):
 class GptClient:
     def __init__(self, personality_rules):
         openai.api_key = os.getenv("OPENAI_API_KEY")
+        # TODO load from disk
         self.conversation = [
             {"role": "system",
              "content": " ".join(personality_rules + APP_RULES)},
@@ -98,8 +103,8 @@ class GptClient:
                 # TODO this regex would work better except for the last iteration. Since we're dealing with a
                 # TODO generator, we can't know if it's the end of the string. chars appear one by one.
                 # if re.match(r"[\.?!]\B", content) or content_gen:
-                if any(char in '.!?' for char in content):  # TODO end of sentence AND not a short sentence
-                    sentence_chunk = ''.join(sentence_buffer)  # TODO + ' <break time="1s"/>'
+                if any(char in '.!?\n' for char in content):  # TODO end of sentence AND not a short sentence
+                    sentence_chunk = ''.join(sentence_buffer)
 
                     response += sentence_chunk
                     print(f'\t"{sentence_chunk.strip()}"')
@@ -117,3 +122,4 @@ class GptClient:
             "role": "assistant",
             "content": response
         })
+        # TODO last response to disk

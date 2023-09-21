@@ -18,7 +18,7 @@ VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
 MIC_AMPLIFICATION_FACTOR = 10
 VOICE_DETECTION_THRESHOLD = 0.75
 CHANNELS = 1
-FRAMES_PER_BUFFER = 1026
+FRAMES_PER_BUFFER = 1024
 MAX_DURATION = 25  # how long to listen for regardless of voice detection
 ENDING_PAUSE_TIME = 1  # seconds of pause before listening stops
 QUEUE_TIMEOUT = 5  # how long for pipeline to wait for an empty queue
@@ -27,7 +27,7 @@ TRANSCRIPTION_FILE = "transcription.wav"
 MAX_LLM_RETRIES = 2  # max llm timeouts
 MAX_TTS_RETRIES = 2  # max tts timeouts
 MAX_STT_RETRIES = 2  # max stt timeouts (this is done locally, but requires authentication)
-DEFAULT_VOLUME = 0.75
+DEFAULT_VOLUME = 0.5
 
 
 class Listening(State):

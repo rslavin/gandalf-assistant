@@ -75,11 +75,10 @@ def frequency_filter(frame, cutoff_low=15, cutoff_high=250, sample_rate=16000):
     return filtered_frame
 
 
-@timeout(3)
+@timeout(6)
 def transcribe_audio(file_path):
     with open(file_path, "rb") as audio_file:
         # TODO TRANSCRIPTION interface
-        # TODO timeout, try https://pypi.org/project/retry/
         question_text = openai.Audio.transcribe(
             file=audio_file,
             model="whisper-1",

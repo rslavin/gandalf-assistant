@@ -14,11 +14,19 @@ def preprocess(query: str):
     now = time.localtime()
     invalid_char_regex = r"[©]"
     query_stripped = query.strip(".?! \t\n").lower()
+    ends_with_cancel_words = (
+        "nevermind",
+        "forgetit",
+        "thankyou"
+    )
+    contains_cancel_words = (
+        "ignorethis",
+    )
 
-    # empty string or 'never mind'
-    alpha_string = ''.join(e for e in query_stripped if e.isalpha())
-    if not len(alpha_string) or alpha_string.lower().endswith(
-            ("nevermind", "forgetit", "thankyou")) or "ignorethis" in alpha_string:
+    # empty string or cancel words
+    alpha_string = ''.join(e for e in query_stripped if e.isalpha()).lower()
+    if not len(alpha_string) or alpha_string.endswith(ends_with_cancel_words) or any(
+            w in alpha_string for w in contains_cancel_words):
         return -1, None
 
     # invalid characters (usually means bad speech to text)
