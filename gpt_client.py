@@ -1,6 +1,7 @@
 import openai
-import regex as re
 import os
+import re
+from datetime import datetime
 from timeout_function_decorator.timeout_decorator import timeout
 from tiktoken import encoding_for_model
 
@@ -15,15 +16,19 @@ MODEL = "gpt-4"
 APP_RULES = [
     "Do your best to give me responses in less than 40 words.",
     "You understand all languages",
-    "I am communicating with you through a speech to text engine which may not always hear me correctly. Adjust for "
+    "I am communicating with you through a speech-to-text engine which may not always hear me correctly. Adjust for "
     "this, but don't tell me you're adjusting.",
     "If a query appears nonsensical, likely due to speech-to-text errors or ambient noise, respond with '-1' to "
     "indicate the issue and include no other text."
     "In such a case, it is possible you are hearing me talking to someone else.",
-    "Be aware that I will be using a speech-to-text engine that may not always be accurate.",
     "If I make a spelling mistake, don't point it out.",
-    "Also, prompt me occasionally with relevant or interesting questions to foster a two-way conversation",
-    "I will sometimes use the NATO phonetic alphabet.",
+    "Prompt me occasionally with relevant or interesting questions to foster a two-way conversation",
+    "If I ask you to do something that you are unable to do, simulate it. For example, if I ask you to flip a coin,"
+    "pretend to flip one and then tell me what it lands on.",
+    "I will sometimes use the NATO phonetic alphabet. When I do, don't point it out, just interpret it given the context",
+    "I will occasionally include timestamps at the beginning of my messages. Remember them and use those timestamps"
+    "to provide more accurate and contextual responses in future responses.",
+    "Do not include timestamps in your responses."
 ]
 
 
@@ -32,13 +37,18 @@ def count_tokens(text):
     return len(encoding.encode(text))
 
 
+def add_timestamp(text):
+    timestamp = datetime.now().strftime("[%B %-d, %Y %-I:%M:%S%p]")
+    return f"{timestamp} {text}"
+
 class GptClient:
-    def __init__(self, personality_rules):
+    def __init__(self, persona):
         openai.api_key = os.getenv("OPENAI_API_KEY")
+        self.persona = persona
         # TODO load from disk
         self.conversation = [
             {"role": "system",
-             "content": " ".join(personality_rules + APP_RULES)},
+             "content": " ".join(persona.personality_rules + APP_RULES)},
         ]
         self.total_tokens = count_tokens(self.conversation[-1]['content'])
 
@@ -58,7 +68,7 @@ class GptClient:
         chat = openai.ChatCompletion.create(
             model=MODEL,
             messages=self.conversation,
-            temperature=TEMPERATURE,
+            # temperature=TEMPERATURE,
             max_tokens=MAX_RESPONSE_TOKENS
         )
         response = chat.choices[0].message.content
@@ -73,6 +83,8 @@ class GptClient:
 
     @timeout(8)
     def get_response_generator(self, message):
+
+        message = add_timestamp(message)
         self.conversation.append({
             "role": "user",
             "content": message,
@@ -90,7 +102,7 @@ class GptClient:
         for chunk in openai.ChatCompletion.create(
                 model="gpt-3.5-turbo",
                 messages=self.conversation,
-                temperature=TEMPERATURE,
+                temperature=self.persona.temperature,
                 max_tokens=MAX_RESPONSE_TOKENS,
                 stream=True
         ):
@@ -105,16 +117,19 @@ class GptClient:
                 # if re.match(r"[\.?!]\B", content) or content_gen:
                 if any(char in '.!?\n' for char in content):  # TODO end of sentence AND not a short sentence
                     sentence_chunk = ''.join(sentence_buffer)
-
+                    sentence_chunk = re.sub(r"^\[.+\] ", '', sentence_chunk)
                     response += sentence_chunk
                     print(f'\t"{sentence_chunk.strip()}"')
                     yield sentence_chunk
                     sentence_buffer = []
                     content = ""
-        if content and content not in ["1", "-1"]:  # anything left over that wasn't identified as a sentence
-            print(f'\t"{content}"')
-            response += content
-            yield content
+        if content:
+            if content in ["1", "-1"]:  # anything left over that wasn't identified as a sentence
+                print(f'\t"{content}" (Nonsense detected)')
+            else:
+                print(f'\t"{content}"')
+                response += content
+                yield content
         yield None
 
         self.total_tokens += count_tokens(response)

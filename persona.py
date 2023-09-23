@@ -1,6 +1,8 @@
 import json
 import os
 
+DEFAULT_LLM_TEMPERATURE = 1
+DEFAULT_VOICE_RATE = 100
 
 class Persona:
     """
@@ -26,6 +28,8 @@ class Persona:
         self.personality_rules = data['personality_rules']
         self.startup_sound = data['startup_sound']
         self.wake_words = list(map(lambda w: os.path.join(dir_path, "assets", w), data['wake_words']))
+        self.temperature = int(data['temperature']) if 'temperature' in data and isinstance(data['temperature'], (int, float)) else DEFAULT_LLM_TEMPERATURE
+        self.voice_rate = int(data['voice']['rate']) if 'rate' in data['voice'] and isinstance(data['voice']['rate'], int) else DEFAULT_VOICE_RATE
 
         for path in self.wake_words:
             if not os.path.exists(path):

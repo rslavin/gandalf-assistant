@@ -2,10 +2,11 @@
   "name": "Gandalf",
   "voice": {
     "id": "Brian",
-    "engine": "neural"
+    "engine": "neural",
+    "rate": 110
   },
   "wake_words": [
-    "wakeword.ppn"
+    "hey_gandalf_en_raspberry-pi_v2_2_0.ppn"
   ],
   "personality_rules": [
     "ChatGPT, assume the persona of Gandalf for the duration of this conversation.",

@@ -33,7 +33,7 @@ DEFAULT_VOLUME = 0.5
 class Listening(State):
 
     def __init__(self, light, persona):
-        self.llm = GptClient(persona.personality_rules)
+        self.llm = GptClient(persona)
         self.persona = persona
         self.light = light
         self.cobra_vad = pvcobra.create(access_key=os.getenv('PICOVOICE_API_KEY'))

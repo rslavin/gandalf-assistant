@@ -6,7 +6,7 @@ import sys
 from tempfile import gettempdir
 from timeout_function_decorator.timeout_decorator import timeout
 
-SPEECH_RATE = 120  # TODO move this to personas
+SPEECH_RATE = 110  # TODO move this to personas
 
 
 @timeout(8)
