@@ -50,7 +50,6 @@ def preprocess(query: str):
     if is_volume is not None:
         return 2, is_volume
 
-    # TODO strip "Hey Gandalf" off, just in case
     return 0, query
 
 
@@ -108,8 +107,6 @@ def check_for_date(query, current_time):
 
 
 # TODO weather
-
-# TODO volume
 
 def number_suffix(d):
     return str(d) + {1: 'st', 2: 'nd', 3: 'rd'}.get(d % 20, 'th')

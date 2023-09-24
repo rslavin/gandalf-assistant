@@ -6,30 +6,26 @@ import sys
 from tempfile import gettempdir
 from timeout_function_decorator.timeout_decorator import timeout
 
-SPEECH_RATE = 110  # TODO move this to personas
-
 
 @timeout(8)
-def play_gandalf(voice_id, voice_engine, text):
+def get_audio(persona, text):
+    voice_id = persona.voice_id
+    voice_engine = persona.voice_engine
+
     session = Session(aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
                       aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'), region_name='us-east-1')
     polly = session.client("polly")
 
     try:
-        # Request speech synthesis
         response = polly.synthesize_speech(Text=text, OutputFormat="mp3",
                                            VoiceId=voice_id, Engine=voice_engine)
     except (BotoCoreError, ClientError) as error:
-        # The service returned an error, exit gracefully
         print(error)
         return None
 
     # Access the audio stream from the response
     if "AudioStream" in response:
-        # Note: Closing the stream is important because the service throttles on the
-        # number of parallel connections. Here we are using contextlib.closing to
-        # ensure the close method of the stream object will be called automatically
-        # at the end of the with statement's scope.
+        # closing is important here because the service will throttle based on parallel connections.
         with closing(response["AudioStream"]) as stream:
             output = os.path.join(gettempdir(), "speech.mp3")
 
@@ -41,32 +37,34 @@ def play_gandalf(voice_id, voice_engine, text):
                 # Could not write to file, exit gracefully
                 print(error)
                 sys.exit(-1)
-
     else:
-        # The response didn't contain audio data, exit gracefully
         print("Could not stream audio")
         return None
     return output
 
 
 @timeout(8)
-def audio_chunk_generator(voice_id, voice_engine, text):
+def audio_chunk_generator(persona, text):
+    voice_id = persona.voice_id
+    voice_engine = persona.voice_engine
+    voice_rate = persona.voice_rate
+
     session = Session(aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
                       aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'), region_name='us-east-1')
     polly = session.client("polly")
 
     try:
         # Request speech synthesis
-        text = f'<speak><prosody rate="{SPEECH_RATE}%">{text}</prosody></speak>'
+        text = f'<speak><prosody rate="{voice_rate}%">{text}</prosody></speak>'
         response = polly.synthesize_speech(Text=text, TextType="ssml", OutputFormat="pcm",
                                            VoiceId=voice_id, Engine=voice_engine)
     except (BotoCoreError, ClientError) as error:
         print(error)
         return None
 
-    # Access the audio stream from the response
     if "AudioStream" in response:
-        chunk_size = 1048576
+        chunk_size = 131072
+        # closing is important here because the service will throttle based on parallel connections.
         with closing(response["AudioStream"]) as stream:
             while True:
                 audio_chunk = stream.read(chunk_size)
@@ -76,6 +74,3 @@ def audio_chunk_generator(voice_id, voice_engine, text):
     else:
         print("Could not stream audio")
         yield None
-
-
-

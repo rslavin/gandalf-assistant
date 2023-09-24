@@ -191,6 +191,7 @@ class Listening(State):
                                 retries += 1
                             except Exception as e:
                                 print(f"Unknown error when attempting LLM request: {e}")
+                                traceback.print_exc()
                                 retries += 1
                             finally:
                                 text_queue.put(None)
@@ -212,8 +213,7 @@ class Listening(State):
                                         first_chunk = False
                                 else:
                                     break
-                                for audio_chunk in tts.audio_chunk_generator(self.persona.voice_id,
-                                                                             self.persona.voice_engine, response_chunk):
+                                for audio_chunk in tts.audio_chunk_generator(self.persona, response_chunk):
                                     voice_queue.put(audio_chunk)
                             except TimeoutError:
                                 print(f"TTS timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")

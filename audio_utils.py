@@ -90,17 +90,15 @@ def transcribe_audio(file_path):
 
 
 def stream_audio(audio_chunk, volume=0.5, samplerate=16000):
-    # TODO first chunk seems to have a break in it
-    # Make sure the chunk length is a multiple of 2 (for np.int16)
+    # make sure the chunk length is a multiple of 2 (for np.int16)
     if len(audio_chunk) % 2 != 0:
         audio_chunk = audio_chunk[:-1]
 
-    # Convert byte data to numpy array
     audio_array = np.frombuffer(audio_chunk, dtype=np.int16)
 
-    # Change volume by scaling amplitude
+    # change volume by scaling amplitude
     audio_array = np.int16(audio_array * volume)
 
-    # Play audio chunk
+    # play chunk
     sd.play(audio_array, samplerate=samplerate)
     sd.wait()

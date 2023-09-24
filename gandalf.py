@@ -28,7 +28,7 @@ class Gandalf:
             exit(-1)
 
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        if os.getenv('APP_ENV') != "LOCAL":
+        if self.persona.startup_sound and os.getenv('APP_ENV') != "LOCAL":
             file_path = os.path.join(dir_path, f"assets/{self.persona.startup_sound}")
             subprocess.call(["xdg-open", file_path])
         self.light = Light(LED_PIN)
