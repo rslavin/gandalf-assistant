@@ -1,7 +1,7 @@
 import wave
 import pyaudio
 import os
-from gpt_client import GptClient
+from gpt_client import GptClient, InvalidInputError
 from preprocessing import preprocess
 from .state_interface import State
 import tts
@@ -40,6 +40,7 @@ class Listening(State):
         # TODO move this to json file
         self.volume_multiplier = DEFAULT_VOLUME
 
+    # TODO NEEDS MAJOR REFACTORING!
     def run(self):
         while True:
             voice_detected = False
@@ -166,7 +167,8 @@ class Listening(State):
                 shared_vars = {
                     'timeout_flag': False,
                     'text_received_time': 0.0,
-                    'audio_received_time': 0.0
+                    'audio_received_time': 0.0,
+                    "continue_conversation": True
                 }
 
                 start_time = time.time()
@@ -186,6 +188,9 @@ class Listening(State):
                                     if response_chunk is None:
                                         break
                                 break  # generator has been fully consumed, so exit the loop
+                            except InvalidInputError:
+                                shared_vars['continue_conversation'] = False
+                                break
                             except TimeoutError:
                                 print(f"LLM timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")
                                 retries += 1
@@ -274,7 +279,7 @@ class Listening(State):
                 audio_thread.join()
                 stream_thread.join()
 
-                if shared_vars['timeout_flag']:
+                if shared_vars['timeout_flag'] or not shared_vars['continue_conversation']:
                     return False
 
                 time.sleep(0.5)

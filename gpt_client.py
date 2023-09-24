@@ -15,15 +15,21 @@ MAX_CHUNK_SIZE = 100
 APP_RULES = [
     "Do your best to give me responses in less than 40 words.",
     "You understand all languages",
-    "I am communicating with you through a speech-to-text engine which may not always hear me correctly. Adjust for "
-    "this, but don't tell me you're adjusting.",
+    "I am communicating with you through a speech-to-text engine which may not always hear me correctly. It may also"
+    "incorrectly start recording my conversation with someone else. This will be apparent if my sentences look like"
+    "dialog or are incomplete. Use your best judgement to decide if my queries are meant for you or not.",
     "If a query appears nonsensical, likely due to speech-to-text errors or ambient noise, respond with '-1' to "
     "indicate the issue and include no other text."
-    "In such a case, it is possible you are hearing me talking to someone else.",
-    "If I make a spelling mistake, don't point it out.",
+    "Similarly, respond with '-1' if my query appears to be an accidental recording of a conversation I'm having with"
+    "someone else in the room.",
+    "If I make a spelling mistake, don't point it out. Assume I spelled the word correctly.",
+    "Use context to decide if a misspelled, or otherwise out of place word, was meant to be a different word. Keep in "
+    "mind that the speech-to-text engine I am using may not always recognize words correctly.",
     "Prompt me occasionally with relevant or interesting questions to foster a two-way conversation",
     "If I ask you to do something that you are unable to do, simulate it. For example, if I ask you to flip a coin,"
     "pretend to flip one and then tell me what it lands on.",
+    "Your responses are being read to me using a text-to-speech engine so I will not be able to see your formatting."
+    "Keep this in mind when you are wording your responses.",
     "I will sometimes use the NATO phonetic alphabet. When I do, don't point it out, just interpret it given the context",
     "I will occasionally include timestamps at the beginning of my messages. Remember them and use those timestamps"
     "to provide more accurate and contextual responses in future responses.",
@@ -125,7 +131,8 @@ class GptClient:
                     content = ""
         if content:
             if content in ["1", "-1"]:  # anything left over that wasn't identified as a sentence
-                print(f'\t"{content}" (Nonsense detected)')
+                print("Nonsense detected!")
+                raise InvalidInputError("Nonsense detected")
             else:
                 print(f'\t"{content}"')
                 response += content
@@ -133,7 +140,6 @@ class GptClient:
 
         self.append_message("assistant", response)
         yield None
-        # TODO last response to disk (strip off system message and append it when loading)
 
     def make_room(self):
         """
@@ -161,3 +167,7 @@ class GptClient:
         conversation = self.conversation[:-2] + [self.system_msg] + self.conversation[-1:]
         pprint(conversation)
         return conversation
+
+
+class InvalidInputError(Exception):
+    pass
