@@ -31,9 +31,9 @@ class Gandalf:
         if self.persona.startup_sound and os.getenv('APP_ENV') != "LOCAL":
             file_path = os.path.join(dir_path, f"assets/{self.persona.startup_sound}")
             subprocess.call(["xdg-open", file_path])
+
         self.light = Light(LED_PIN)
         self.light.blink(2)
-
         self.states = [
             Asleep(self.persona.wake_words),
             Listening(self.light, self.persona)

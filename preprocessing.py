@@ -108,5 +108,7 @@ def check_for_date(query, current_time):
 
 # TODO weather
 
+# TODO allow personas to change and save all parameters (e.g., volume, speed, etc.)
+
 def number_suffix(d):
     return str(d) + {1: 'st', 2: 'nd', 3: 'rd'}.get(d % 20, 'th')

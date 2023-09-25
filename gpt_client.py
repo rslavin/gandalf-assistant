@@ -114,14 +114,13 @@ class GptClient:
         ):
             content_gen = chunk["choices"][0].get("delta", {}).get("content")
             if content_gen is not None:
-                content = ''.join(content_gen)
-                sentence_buffer.append(content)
+                content = ''.join(content_gen)  # yielded strings
+                sentence_buffer.append(content)  # list of strings
 
                 # Check if the buffer contains a full sentence
-                # TODO this regex would work better except for the last iteration. Since we're dealing with a
-                # TODO generator, we can't know if it's the end of the string. chars appear one by one.
-                # if re.match(r"[\.?!]\B", content) or content_gen:
-                if any(char in '.!?\n' for char in content):  # TODO end of sentence AND not a short sentence
+                # TODO this regex may work better for not catching initials in the sentence
+                # if re.match(r"[^\s.]{2,}[\.\?!\n]", content) or content_gen:
+                if any(char in '.!?\n' for char in content):
                     sentence_chunk = ''.join(sentence_buffer)
                     sentence_chunk = re.sub(r"^\[.+\] ", '', sentence_chunk)
                     response += sentence_chunk
