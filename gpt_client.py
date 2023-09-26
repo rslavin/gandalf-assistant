@@ -1,5 +1,6 @@
 import openai
 from pprint import pprint
+import json
 import os
 import re
 import pickle
@@ -11,31 +12,7 @@ MAX_MODEL_TOKENS = 8192  # max tokens the model can handle
 MODEL = "gpt-4"
 MAX_RESPONSE_TOKENS = 150  # max tokens in response
 HISTORY_DIR = "personas"
-
-APP_RULES = [
-    "Do your best to give me responses in less than 40 words. If necessary to adequately respond, you may use more words.",
-    "You understand all languages",
-    "I am communicating with you through a speech-to-text engine which may not always hear me correctly. It may also"
-    "incorrectly start recording my conversation with someone else. This will be apparent if my sentences look like"
-    "dialog or are incomplete. Use your best judgement to decide if my queries are meant for you or not.",
-    "If a query appears nonsensical, likely due to speech-to-text errors or ambient noise, respond with '-1' to "
-    "indicate the issue and include no other text."
-    "Similarly, respond with '-1' if my query appears to be an accidental recording of a conversation I'm having with"
-    "someone else in the room.",
-    "If I make a spelling mistake, don't point it out. Try to infer what I actually meant and then assume I spelled the word correctly.",
-    "Use context to decide if a misspelled, or otherwise out of place word, was meant to be a different word. Keep in "
-    "mind that the speech-to-text engine I am using may not always recognize words correctly.",
-    "Prompt me occasionally with relevant or interesting questions to foster a two-way conversation",
-    "If I ask you to do something that you are unable to do, simulate it. For example, if I ask you to flip a coin,"
-    "pretend to flip one and then tell me what it lands on.",
-    "Your responses are being read to me using a text-to-speech engine so I will not be able to see your formatting."
-    "Keep this in mind when you are wording your responses.",
-    "I will sometimes use the NATO phonetic alphabet. When I do, don't point it out, just interpret it given the context",
-    "I will occasionally include timestamps at the beginning of my messages. Remember them and use those timestamps"
-    "to provide more accurate and contextual responses in future responses.",
-    "Do not include timestamps in your responses.",
-    "When talking about time, only include seconds if that level of precision is necessary."
-]
+DIRECTIVES_PATH = "config/gpt_directives.json"
 
 
 def count_tokens(text) -> int:
@@ -64,6 +41,19 @@ def load_conversation(file_path) -> []:
     return conversation
 
 
+def get_system_directives():
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    file_path = os.path.join(dir_path, DIRECTIVES_PATH)
+
+    with open(file_path) as f:
+        try:
+            directives = json.load(f)
+        except json.decoder.JSONDecodeError:
+            print(f"Error in gpt directives file (extra comma?): {file_path}")
+            exit(1)
+    return directives['directives']
+
+
 class GptClient:
     def __init__(self, persona):
         openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -80,7 +70,7 @@ class GptClient:
 
         self.system_msg = {
             "role": "system",
-            "content": " ".join(persona.personality_rules) + "\n\n" + " ".join(APP_RULES)
+            "content": " ".join(persona.personality_rules) + "\n\n" + " ".join(get_system_directives())
         }
         self.total_tokens = count_tokens(self.system_msg['content'])
         # make room in case the loaded conversation is too long
@@ -172,7 +162,7 @@ class GptClient:
 
     def get_conversation(self):
         conversation = self.conversation[:-3] + [self.system_msg] + self.conversation[-2:]
-        pprint(conversation)
+        # pprint(conversation)
         return conversation
 
 
