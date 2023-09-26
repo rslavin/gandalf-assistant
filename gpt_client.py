@@ -9,11 +9,11 @@ from tiktoken import encoding_for_model
 
 MAX_MODEL_TOKENS = 8192  # max tokens the model can handle
 MODEL = "gpt-4"
-MAX_RESPONSE_TOKENS = 250  # max tokens in response
-MAX_CHUNK_SIZE = 100
+MAX_RESPONSE_TOKENS = 150  # max tokens in response
+HISTORY_DIR = "personas"
 
 APP_RULES = [
-    "Do your best to give me responses in less than 40 words.",
+    "Do your best to give me responses in less than 40 words. If necessary to adequately respond, you may use more words.",
     "You understand all languages",
     "I am communicating with you through a speech-to-text engine which may not always hear me correctly. It may also"
     "incorrectly start recording my conversation with someone else. This will be apparent if my sentences look like"
@@ -22,7 +22,7 @@ APP_RULES = [
     "indicate the issue and include no other text."
     "Similarly, respond with '-1' if my query appears to be an accidental recording of a conversation I'm having with"
     "someone else in the room.",
-    "If I make a spelling mistake, don't point it out. Assume I spelled the word correctly.",
+    "If I make a spelling mistake, don't point it out. Try to infer what I actually meant and then assume I spelled the word correctly.",
     "Use context to decide if a misspelled, or otherwise out of place word, was meant to be a different word. Keep in "
     "mind that the speech-to-text engine I am using may not always recognize words correctly.",
     "Prompt me occasionally with relevant or interesting questions to foster a two-way conversation",
@@ -33,7 +33,8 @@ APP_RULES = [
     "I will sometimes use the NATO phonetic alphabet. When I do, don't point it out, just interpret it given the context",
     "I will occasionally include timestamps at the beginning of my messages. Remember them and use those timestamps"
     "to provide more accurate and contextual responses in future responses.",
-    "Do not include timestamps in your responses."
+    "Do not include timestamps in your responses.",
+    "When talking about time, only include seconds if that level of precision is necessary."
 ]
 
 
@@ -56,8 +57,10 @@ def load_conversation(file_path) -> []:
                     conversation.append(pickle.load(f))
                 except EOFError:
                     break
-    except Exception:
-        print(f"Unable to load conversation from {file_path}. Creating empty one.")
+    except Exception as e:
+        print(f"The following exception occurred when trying to load {file_path}: {e}")
+        if not conversation:
+            print("The conversation was not loaded. A new conversation has been created.")
     return conversation
 
 
@@ -67,10 +70,11 @@ class GptClient:
         self.persona = persona
         # load from disk
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        self.pkl_file = os.path.join(dir_path, f"assets/{self.persona.name}.pkl")
+        conv_file = f"{self.persona.name}_DEBUG.pkl" if os.getenv("APP_ENV") == "LOCAL" else f"{self.persona.name}.pkl"
+        self.pkl_file = os.path.join(dir_path, HISTORY_DIR, conv_file)
         self.conversation = load_conversation(self.pkl_file)
 
-        if self.conversation is not None:
+        if self.conversation:
             print(f"{self.persona.name}'s conversation history successfully loaded.")
             pprint(self.conversation)
 
@@ -79,6 +83,8 @@ class GptClient:
             "content": " ".join(persona.personality_rules) + "\n\n" + " ".join(APP_RULES)
         }
         self.total_tokens = count_tokens(self.system_msg['content'])
+        # make room in case the loaded conversation is too long
+        self.make_room()
 
     @timeout(15)
     def get_response(self, message):
@@ -102,9 +108,8 @@ class GptClient:
         self.append_message("user", add_timestamp(message))
         self.make_room()
 
-        sentence_buffer = []
+        sentence_buffer = ""
         response = ""
-        content = ""
         for chunk in openai.ChatCompletion.create(
                 model=MODEL,
                 messages=self.get_conversation(),
@@ -114,28 +119,24 @@ class GptClient:
         ):
             content_gen = chunk["choices"][0].get("delta", {}).get("content")
             if content_gen is not None:
-                content = ''.join(content_gen)  # yielded strings
-                sentence_buffer.append(content)  # list of strings
+                content = ''.join(content_gen)  # yielded strings/words
+                sentence_buffer += content  # current sentence
 
-                # Check if the buffer contains a full sentence
-                # TODO this regex may work better for not catching initials in the sentence
-                # if re.match(r"[^\s.]{2,}[\.\?!\n]", content) or content_gen:
-                if any(char in '.!?\n' for char in content):
-                    sentence_chunk = ''.join(sentence_buffer)
-                    sentence_chunk = re.sub(r"^\[.+\] ", '', sentence_chunk)
-                    response += sentence_chunk
-                    print(f'\t"{sentence_chunk.strip()}"')
-                    yield sentence_chunk
-                    sentence_buffer = []
-                    content = ""
-        if content:
-            if content in ["1", "-1"]:  # anything left over that wasn't identified as a sentence
+                # check if the buffer contains a full sentence
+                if re.search(r"[^\s.]{2,}[\.\?!\n]", sentence_buffer):
+                    sentence_buffer = re.sub(r"^\[.+\] ", '', sentence_buffer)
+                    response += sentence_buffer
+                    print(f'\t"{sentence_buffer.strip()}"')
+                    yield sentence_buffer
+                    sentence_buffer = ""
+        if sentence_buffer:
+            if sentence_buffer in ["1", "-1"]:  # anything left over that wasn't identified as a sentence
                 print("Nonsense detected!")
                 raise InvalidInputError("Nonsense detected")
             else:
-                print(f'\t"{content}"')
-                response += content
-                yield content
+                print(f'\t"{sentence_buffer.strip()}"')
+                response += sentence_buffer
+                yield sentence_buffer
 
         self.append_message("assistant", response)
         yield None
@@ -145,12 +146,19 @@ class GptClient:
         Removes older messages from conversation to make room for max token count.
         :return:
         """
+        # self.total_tokens includes the system token count
         while self.total_tokens > MAX_MODEL_TOKENS - MAX_RESPONSE_TOKENS:
             removed_message = self.conversation.pop(0)
-            self.total_tokens -= count_tokens(removed_message['content'])
+            removed_token_count = count_tokens(removed_message['content'])
+            self.total_tokens -= removed_token_count
+            print(f"Pruning history to make room... {removed_token_count} tokens freed.")
 
     def append_message(self, role, message):
-        self.total_tokens += count_tokens(message)
+        message_tokens = count_tokens(message)
+        print(f"Message tokens: {message_tokens}")
+        self.total_tokens += message_tokens
+        print(f"Total tokens: {self.total_tokens} / {MAX_MODEL_TOKENS}")
+
         message = {
             "role": role,
             "content": message
@@ -163,7 +171,7 @@ class GptClient:
             print(f"Unable to write to {self.pkl_file}: {e}")
 
     def get_conversation(self):
-        conversation = self.conversation[:-2] + [self.system_msg] + self.conversation[-1:]
+        conversation = self.conversation[:-3] + [self.system_msg] + self.conversation[-2:]
         pprint(conversation)
         return conversation
 

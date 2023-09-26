@@ -105,10 +105,16 @@ def check_for_date(query, current_time):
                                                     date_2=number_suffix(
                                                         int(time.strftime("%d", current_time).lstrip("0"))))
 
+# TODO "let me start over" should delete all text before it.
+
 
 # TODO weather
 
 # TODO allow personas to change and save all parameters (e.g., volume, speed, etc.)
+
+# TODO allow natalie to store system directives as a response to a query. use some kind of formatting (json) as responses
+# TODO so they can be post-processed on the device. Maybe even use them to trigger api calls to other services
+# TODO include cron jobs
 
 def number_suffix(d):
     return str(d) + {1: 'st', 2: 'nd', 3: 'rd'}.get(d % 20, 'th')
