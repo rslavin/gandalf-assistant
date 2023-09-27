@@ -113,6 +113,7 @@ class GptClient:
                 sentence_buffer += content  # current sentence
 
                 # check if the buffer contains a full sentence
+                # TODO stop this from catching enumerated lists \d+\.
                 if re.search(r"[^\s.]{2,}[\.\?!\n]", sentence_buffer):
                     sentence_buffer = re.sub(r"^\[.+\] ", '', sentence_buffer)
                     response += sentence_buffer

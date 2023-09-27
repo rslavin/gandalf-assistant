@@ -11,7 +11,7 @@ import time
 import queue
 import threading
 import pvcobra
-from audio_utils import downsample_audio, transcribe_audio, stream_audio
+from audio_utils import downsample_audio, transcribe_audio, stream_audio, wait_for_wake_word
 
 MIC_RATE = 44100  # frequency of microphone
 VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
@@ -122,9 +122,6 @@ def tts(file):
     return question_text
 
 
-
-
-
 class Listening(State):
 
     def __init__(self, light, persona):
@@ -167,8 +164,10 @@ class Listening(State):
                     break
 
                 # begin pipeline to play response
+                pa.terminate() # terminate so the stop_word detector can use the mic
                 self.light.turn_off()
-                timeout_flag, continue_conversation= self.run_response_pipeline(response, question_text, proc_start_time)
+                timeout_flag, continue_conversation = self.run_response_pipeline(response, question_text,
+                                                                                 proc_start_time)
 
                 if timeout_flag or not continue_conversation:
                     return False
@@ -183,13 +182,14 @@ class Listening(State):
             finally:
                 try:
                     os.remove(TRANSCRIPTION_FILE)
+                    if 'pa' in locals():
+                        pa.terminate()
                 except OSError:
                     pass
                 if audio_stream is not None:
                     audio_stream.stop_stream()
                     audio_stream.close()
                     self.light.turn_off()
-                pa.terminate()
 
         return True
 
@@ -201,7 +201,8 @@ class Listening(State):
             'timeout_flag': False,
             'text_received_time': 0.0,
             'audio_received_time': 0.0,
-            "continue_conversation": True
+            "continue_conversation": True,
+            "stop_playback": False
         }
         start_time = time.time()
 
@@ -216,6 +217,9 @@ class Listening(State):
                     try:
                         response_generator = self.llm.get_response_generator(question_text)
                         for response_chunk in response_generator:
+                            if shared_vars['stop_playback']:
+                                # stop word detected
+                                break
                             text_queue.put(response_chunk)
                             if response_chunk is None:
                                 break
@@ -241,6 +245,8 @@ class Listening(State):
                 first_chunk = True
                 while retries < MAX_TTS_RETRIES:
                     try:
+                        if shared_vars['stop_playback']:
+                            break
                         response_chunk = text_queue.get(timeout=QUEUE_TIMEOUT)
                         if response_chunk is not None:
                             if first_chunk:
@@ -251,6 +257,11 @@ class Listening(State):
                         else:
                             break
                         for audio_chunk in polly_client.audio_chunk_generator(self.persona, response_chunk):
+                            if shared_vars['stop_playback']:
+                                # stop word detected
+                                while not text_queue.empty():
+                                    text_queue.get()
+                                break
                             voice_queue.put(audio_chunk)
                     except TimeoutError:
                         print(f"TTS timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")
@@ -273,6 +284,11 @@ class Listening(State):
             first_chunk = True
             if not shared_vars['timeout_flag']:
                 while True:
+                    if shared_vars['stop_playback']:
+                        # stop word detected
+                        while not voice_queue.empty():
+                            voice_queue.get()
+                        break
                     try:
                         audio_chunk = voice_queue.get(timeout=QUEUE_TIMEOUT)
                         if audio_chunk is None:
@@ -291,22 +307,31 @@ class Listening(State):
                             break
             else:
                 print("Skipping audio stream due to timeout.")
+            shared_vars['stop_playback'] = True
+
+        def monitor_stop_word():
+            shared_vars['stop_playback'] = wait_for_wake_word([0.6], self.persona.stop_words, shared_vars)
 
         # start threads
         text_thread = threading.Thread(target=enqueue_text)
         audio_thread = threading.Thread(target=enqueue_audio)
         stream_thread = threading.Thread(target=stream_audio_chunks)
+        stop_word_thread = threading.Thread(target=monitor_stop_word)
         # set threads to terminate with main program
         audio_thread.daemon = True
         text_thread.daemon = True
         stream_thread.daemon = True
+        stop_word_thread.daemon = True
         text_thread.start()
         audio_thread.start()
         stream_thread.start()
+        stop_word_thread.start()
         # wait for threads to finish
         text_thread.join()
         audio_thread.join()
         stream_thread.join()
+        stop_word_thread.join()
+
         return shared_vars['timeout_flag'], shared_vars['continue_conversation']
 
     def preprocess_text(self, question_text):

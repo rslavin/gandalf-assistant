@@ -34,6 +34,7 @@ class Persona:
         self.personality_rules = data['personality_rules']
         self.startup_sound = data['startup_sound'] if 'startup_sound' in data else None
         self.wake_words = list(map(lambda w: os.path.join(dir_path, "assets", w), data['wake_words']))
+        self.stop_words = list(map(lambda w: os.path.join(dir_path, "assets", w), data['stop_words']))
         self.temperature = int(data['temperature']) if 'temperature' in data and isinstance(data['temperature'], (
             int, float)) else DEFAULT_LLM_TEMPERATURE
         self.voice_rate = int(data['voice']['rate']) if 'rate' in data['voice'] and isinstance(data['voice']['rate'],

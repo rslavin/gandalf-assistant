@@ -8,6 +8,9 @@
   "wake_words": [
     "hey_gandalf_en_raspberry-pi_v2_2_0.ppn"
   ],
+  "stop_words": [
+    "hey_gandalf_en_raspberry-pi_v2_2_0.ppn"
+  ],
   "personality_rules": [
     "ChatGPT, assume the persona of Gandalf for the duration of this conversation.",
     "The following are directives that you should follow for the duration of this conversation.",

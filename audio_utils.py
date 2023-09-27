@@ -6,8 +6,13 @@ import openai
 import sounddevice as sd
 from pydub import AudioSegment
 import math
+import pyaudio
+import pvporcupine
+import struct
 from timeout_function_decorator.timeout_decorator import timeout
 
+MIC_RATE = 44100  # frequency of microphone
+VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
 
 def amplify_wav(file_path, amplification_factor):
     with wave.open(file_path, 'rb') as wf:
@@ -101,3 +106,42 @@ def stream_audio(audio_chunk, volume=0.5, samplerate=16000):
     # play chunk
     sd.play(audio_array, samplerate=samplerate)
     sd.wait()
+
+
+def wait_for_wake_word(sensitivities, wakewords, stop_flag: dict = {'stop_playback': False}):
+    # stop_flag must be mutable since it may be shared between threads
+    dir_path = os.path.dirname(os.path.realpath(__file__))
+    # TODO include sensitivities for wakewords
+    file_paths = list(map(lambda file: os.path.join(dir_path, "..", file), wakewords))
+    porcupine = pvporcupine.create(
+        access_key=os.getenv('PICOVOICE_API_KEY'),
+        keyword_paths=file_paths,
+        sensitivities=sensitivities
+    )
+
+    # Calculate the initial frame length based on Porcupine's requirements
+    initial_frame_length = int(porcupine.frame_length * (MIC_RATE / VOICE_DETECTION_RATE))
+    pa = pyaudio.PyAudio()
+    audio_stream = pa.open(
+        rate=MIC_RATE,  # porcupine.sample_rate # (16000) is not supported by the mic I'm using
+        channels=1,
+        format=pyaudio.paInt16,
+        input=True,
+        frames_per_buffer=initial_frame_length,  # porcupine.frame_length,
+    )
+
+    while not stop_flag['stop_playback']:
+        audio = audio_stream.read(initial_frame_length, exception_on_overflow=False)
+        audio = struct.unpack_from("h" * initial_frame_length, audio)
+
+        # resample to 44100 because of mic I'm using
+        audio_resampled = convert_frame_length(audio, porcupine.frame_length)
+
+        # feed resampled audio into porcupine
+        # TODO add keywords. Return value is the one detected
+        # TODO dynamically filter them out here based on persona
+        if porcupine.process(audio_resampled) >= 0:
+            print("Wake word detected!")
+            break
+    pa.close(audio_stream)
+    return True
