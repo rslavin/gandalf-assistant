@@ -109,6 +109,7 @@ def stream_audio(audio_chunk, volume=0.5, samplerate=16000):
 
 
 def wait_for_wake_word(sensitivities, wakewords, stop_flag: dict = {'stop_playback': False}):
+    # TODO filter out the system's voice based on its frequency (180 - 300) or only look at my voice's (80 - 120
     # stop_flag must be mutable since it may be shared between threads
     dir_path = os.path.dirname(os.path.realpath(__file__))
     # TODO include sensitivities for wakewords
