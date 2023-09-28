@@ -27,7 +27,8 @@ class Persona:
             except json.decoder.JSONDecodeError:
                 print(f"Error in persona file (extra comma?): {file_path}")
                 exit(1)
-
+        # TODO add a 'mode' with overrides for personality_rules, temperature, voice rate, etc. Store it in the json
+        # TODO create commands that switch between
         self.name = data['name']
         self.voice_id = data['voice']['id']
         self.voice_engine = data['voice']['engine']
