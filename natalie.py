@@ -1,3 +1,4 @@
+#!/bin/env python3
 import json
 import os
 import subprocess
@@ -21,7 +22,6 @@ SOUND_CONFIG_PATH = "config/sound.json"
 class Gandalf:
     def __init__(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
-        self.pa = pyaudio.PyAudio()
         file_path = os.path.join(dir_path, SOUND_CONFIG_PATH)
 
         with open(file_path) as f:
@@ -31,7 +31,8 @@ class Gandalf:
                 print(f"Error in sound config file (extra comma?): {file_path}")
                 exit(1)
 
-        persona_name = argv[1] if len(argv) > 1 else "gandalf"
+        persona_name = argv[1] if len(argv) > 1 else "natalie"
+        persona_name = persona_name.rstrip(".json")
         try:
             self.persona = Persona(persona_name, self.sound_config['polly']['rate'])
         except FileNotFoundError as e:

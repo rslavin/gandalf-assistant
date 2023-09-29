@@ -6,6 +6,7 @@ from enum import Enum
 
 class Action(Enum):
     DROP = -1
+    CONTINUE = 0
     REPLACE = 1
     VOLUME_ADJUST = 2
 
@@ -34,30 +35,30 @@ def preprocess(query: str):
     alpha_string = ''.join(e for e in query_stripped if e.isalpha()).lower()
     if not len(alpha_string) or alpha_string.endswith(ends_with_cancel_words) or any(
             w in alpha_string for w in contains_cancel_words):
-        return -1, None
+        return Action.DROP, None
 
     # invalid characters (usually means bad speech to text)
     if bool(re.search(invalid_char_regex, query_stripped)):
-        return -1, None
+        return Action.DROP, None
 
     # single word
     if query_stripped.count(" ") == 0:
-        return -1, None
+        return Action.DROP, None
 
     # time
     is_time = check_for_time(query_stripped, now)
     if is_time:
-        return 1, is_time
+        return Action.REPLACE, is_time
 
     is_date = check_for_date(query_stripped, now)
     if is_date:
-        return 1, is_date
+        return Action.REPLACE, is_date
 
     is_volume = check_for_volume(query_stripped)
     if is_volume is not None:
-        return 2, is_volume
+        return Action.VOLUME_ADJUST, is_volume
 
-    return 0, query
+    return Action.CONTINUE, query
 
 
 def check_for_volume(query):

@@ -128,7 +128,7 @@ def wait_for_wake_word(sensitivities, wakewords, mic_rate, stop_flag: dict = {'s
 
     # calculate the initial frame length based on Porcupine's requirements
     initial_frame_length = int(porcupine.frame_length * (mic_rate / porcupine.sample_rate))
-    audio_stream, pa = get_audio_stream(mic_rate, initial_frame_length)
+    audio_stream = get_audio_stream(mic_rate, initial_frame_length)
 
     while not stop_flag['stop_playback']:
         audio = audio_stream.read(initial_frame_length, exception_on_overflow=False)
@@ -180,7 +180,7 @@ class AudioStreamSingleton:
             cls._current_mic_rate = mic_rate
             cls._current_frames_per_buffer = frames_per_buffer
 
-        return cls._audio_stream, cls._pa_instance
+        return cls._audio_stream
 
     @classmethod
     def close_audio(cls):

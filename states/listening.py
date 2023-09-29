@@ -27,10 +27,10 @@ MAX_TTS_RETRIES = 2  # max tts timeouts
 MAX_STT_RETRIES = 2  # max stt timeouts
 
 
-def initialize_audio_file(pa, mic_rate):
+def initialize_audio_file(mic_rate):
     wf = wave.open(TRANSCRIPTION_FILE, 'wb')
     wf.setnchannels(audio.CHANNELS)
-    wf.setsampwidth(pa.get_sample_size(pyaudio.paInt16))
+    wf.setsampwidth(2)  # assuming 16-bit samples (2 bytes)
     wf.setframerate(mic_rate)
     return wf
 
@@ -122,8 +122,8 @@ class Listening(State):
 
             try:
                 # record query
-                audio_stream, pa = audio.get_audio_stream(self.sound_config['microphone']['rate'])
-                audio_file = initialize_audio_file(pa, self.sound_config['microphone']['rate'])
+                audio_stream = audio.get_audio_stream(self.sound_config['microphone']['rate'])
+                audio_file = initialize_audio_file(self.sound_config['microphone']['rate'])
                 voice_detected = record_query(audio_stream, audio_file, voice_detected,
                                               self.sound_config['microphone']['rate'],
                                               self.sound_config['microphone']['amplification'])
@@ -144,7 +144,7 @@ class Listening(State):
                 # process answer
                 action, response = self.preprocess_text(question_text)
 
-                if action < 0:
+                if action == Action.DROP:
                     break
 
                 # begin pipeline to play response
@@ -292,6 +292,7 @@ class Listening(State):
             shared_vars['stop_playback'] = True
 
         def monitor_stop_word():
+            # TODO get wakeword sensitivities from persona
             shared_vars['stop_playback'] = audio.wait_for_wake_word([0.6], self.persona.stop_words,
                                                                     self.sound_config['microphone']['rate'],
                                                                     shared_vars)
