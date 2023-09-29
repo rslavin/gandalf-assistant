@@ -14,6 +14,7 @@ from tiktoken import encoding_for_model
 MAX_MODEL_TOKENS = 8000  # 8192
 MODEL = "gpt-3.5-turbo-16k"
 #MODEL = "gpt-4"
+# TODO set a token threshold where it will switch from gpt4 to gpt3 after using too many tokens
 MAX_RESPONSE_TOKENS = 200  # max tokens in response
 HISTORY_DIR = "personas"
 DIRECTIVES_PATH = "config/gpt_directives.json"
@@ -59,8 +60,8 @@ class GptClient:
         self.conversation = []
         self.load_conversation()
         self.make_room()
-        if self.conversation:
-            pprint(self.conversation)
+        # if self.conversation:
+        #     pprint(self.conversation)
 
     def load_conversation(self):
         try:
@@ -68,7 +69,7 @@ class GptClient:
                 while True:
                     try:
                         msg = pickle.load(f)
-                        pprint(msg)
+                        # pprint(msg)
                         self.append_message(msg['role'], msg['content'])
                     except EOFError:
                         break

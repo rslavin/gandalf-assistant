@@ -1,0 +1,14 @@
+{
+  "microphone": {
+    "rate": 16000,
+    "amplification": 10
+  },
+  "speaker": {
+    "rate": 48000,
+    "volume": 0.5,
+    "device_name": "USB"
+  },
+  "polly": {
+    "rate": 16000
+  }
+}

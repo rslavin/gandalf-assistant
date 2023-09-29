@@ -3,7 +3,7 @@ A voice assistant built to run on a Raspberry Pi. It uses the following for real
 while acting as Gandalf the Grey
 
 - Porcupine Wake Word Engine (local) - Wake word ("Hey Gandalf")
-- OpenAI's Whisper (local) - Speech to text
+- OpenAI's Whisper (cloud) - Speech to text
 - OpenAI's GPT3.5 (cloud) - Response generation
 - AWS Polly (cloud) - Text to speech
 

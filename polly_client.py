@@ -48,6 +48,7 @@ def audio_chunk_generator(persona, text):
     voice_id = persona.voice_id
     voice_engine = persona.voice_engine
     voice_rate = persona.voice_rate
+    sample_rate = str(persona.sample_rate)
 
     session = Session(aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
                       aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'), region_name='us-east-1')
@@ -56,7 +57,7 @@ def audio_chunk_generator(persona, text):
     try:
         # Request speech synthesis
         text = f'<speak><prosody rate="{voice_rate}%">{text}</prosody></speak>'
-        response = polly.synthesize_speech(Text=text, TextType="ssml", OutputFormat="pcm",
+        response = polly.synthesize_speech(Text=text, TextType="ssml", OutputFormat="pcm", SampleRate=sample_rate,
                                            VoiceId=voice_id, Engine=voice_engine)
     except (BotoCoreError, ClientError) as error:
         print(error)

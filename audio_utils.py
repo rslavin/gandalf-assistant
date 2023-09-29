@@ -11,8 +11,10 @@ import pvporcupine
 import struct
 from timeout_function_decorator.timeout_decorator import timeout
 
-MIC_RATE = 44100  # frequency of microphone
+SPEAKER_RATE = 48000
+SPEAKER_NAME = "USB"
 VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
+
 
 def amplify_wav(file_path, amplification_factor):
     with wave.open(file_path, 'rb') as wf:
@@ -37,7 +39,7 @@ def adjust_volume(file_path, percentage, file_format="mp3"):
     amplified_sound.export(file_path, format=file_format)
 
 
-def downsample_audio(audio_data, from_rate, to_rate):
+def resample_audio(audio_data, from_rate, to_rate):
     # convert to numpy array if audio_data is in bytes
     if isinstance(audio_data, bytes):
         audio_data = np.frombuffer(audio_data, dtype=np.int16)
@@ -93,10 +95,12 @@ def transcribe_audio(file_path):
     return question_text
 
 
-def stream_audio(audio_chunk, volume=0.5, samplerate=16000):
+def stream_audio(audio_chunk, volume=0.5, device=SPEAKER_NAME, audio_rate=16000, speaker_rate=SPEAKER_RATE):
     # make sure the chunk length is a multiple of 2 (for np.int16)
     if len(audio_chunk) % 2 != 0:
         audio_chunk = audio_chunk[:-1]
+
+    audio_chunk = resample_audio(audio_chunk, from_rate=audio_rate, to_rate=speaker_rate)
 
     audio_array = np.frombuffer(audio_chunk, dtype=np.int16)
 
@@ -104,11 +108,13 @@ def stream_audio(audio_chunk, volume=0.5, samplerate=16000):
     audio_array = np.int16(audio_array * volume)
 
     # play chunk
-    sd.play(audio_array, samplerate=samplerate)
+    if SPEAKER_NAME:
+        sd.default.device = device
+    sd.play(audio_array)
     sd.wait()
 
 
-def wait_for_wake_word(sensitivities, wakewords, stop_flag: dict = {'stop_playback': False}):
+def wait_for_wake_word(sensitivities, wakewords, mic_rate, stop_flag: dict = {'stop_playback': False}):
     # TODO filter out the system's voice based on its frequency (180 - 300) or only look at my voice's (80 - 120
     # stop_flag must be mutable since it may be shared between threads
     dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -121,10 +127,10 @@ def wait_for_wake_word(sensitivities, wakewords, stop_flag: dict = {'stop_playba
     )
 
     # Calculate the initial frame length based on Porcupine's requirements
-    initial_frame_length = int(porcupine.frame_length * (MIC_RATE / VOICE_DETECTION_RATE))
+    initial_frame_length = int(porcupine.frame_length * (mic_rate / VOICE_DETECTION_RATE))
     pa = pyaudio.PyAudio()
     audio_stream = pa.open(
-        rate=MIC_RATE,  # porcupine.sample_rate # (16000) is not supported by the mic I'm using
+        rate=mic_rate,  # porcupine.sample_rate # (16000) may not be supported by mic
         channels=1,
         format=pyaudio.paInt16,
         input=True,
