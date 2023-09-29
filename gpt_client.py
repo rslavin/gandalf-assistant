@@ -1,12 +1,12 @@
-import openai
-from pprint import pprint
 import json
 import os
-import re
 import pickle
+import re
 from datetime import datetime
-from timeout_function_decorator.timeout_decorator import timeout
+
+import openai
 from tiktoken import encoding_for_model
+from timeout_function_decorator.timeout_decorator import timeout
 
 # max tokens the model can handle - lowering this can reduce api cost since the entire conversation is sent
 # with each request

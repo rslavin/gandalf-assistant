@@ -1,19 +1,19 @@
-import wave
-import numpy as np
-from scipy.signal import resample
+import math
 import os
+import struct
+import wave
+
+import numpy as np
 import openai
+import pvporcupine
+import pyaudio
 import sounddevice as sd
 from pydub import AudioSegment
-import math
-import pyaudio
-import pvporcupine
-import struct
+from scipy.signal import resample
 from timeout_function_decorator.timeout_decorator import timeout
 
-SPEAKER_RATE = 48000
-SPEAKER_NAME = "USB"
-VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
+CHANNELS = 1
+FRAMES_PER_BUFFER = 512
 
 
 def amplify_wav(file_path, amplification_factor):
@@ -95,7 +95,7 @@ def transcribe_audio(file_path):
     return question_text
 
 
-def stream_audio(audio_chunk, volume=0.5, device=SPEAKER_NAME, audio_rate=16000, speaker_rate=SPEAKER_RATE):
+def stream_audio(audio_chunk, audio_rate, speaker_rate, volume=0.5, device_name=""):
     # make sure the chunk length is a multiple of 2 (for np.int16)
     if len(audio_chunk) % 2 != 0:
         audio_chunk = audio_chunk[:-1]
@@ -108,8 +108,8 @@ def stream_audio(audio_chunk, volume=0.5, device=SPEAKER_NAME, audio_rate=16000,
     audio_array = np.int16(audio_array * volume)
 
     # play chunk
-    if SPEAKER_NAME:
-        sd.default.device = device
+    if device_name:
+        sd.default.device = device_name
     sd.play(audio_array)
     sd.wait()
 
@@ -126,22 +126,14 @@ def wait_for_wake_word(sensitivities, wakewords, mic_rate, stop_flag: dict = {'s
         sensitivities=sensitivities
     )
 
-    # Calculate the initial frame length based on Porcupine's requirements
-    initial_frame_length = int(porcupine.frame_length * (mic_rate / VOICE_DETECTION_RATE))
-    pa = pyaudio.PyAudio()
-    audio_stream = pa.open(
-        rate=mic_rate,  # porcupine.sample_rate # (16000) may not be supported by mic
-        channels=1,
-        format=pyaudio.paInt16,
-        input=True,
-        frames_per_buffer=initial_frame_length,  # porcupine.frame_length,
-    )
+    # calculate the initial frame length based on Porcupine's requirements
+    initial_frame_length = int(porcupine.frame_length * (mic_rate / porcupine.sample_rate))
+    audio_stream, pa = get_audio_stream(mic_rate, initial_frame_length)
 
     while not stop_flag['stop_playback']:
         audio = audio_stream.read(initial_frame_length, exception_on_overflow=False)
         audio = struct.unpack_from("h" * initial_frame_length, audio)
 
-        # resample to 44100 because of mic I'm using
         audio_resampled = convert_frame_length(audio, porcupine.frame_length)
 
         # feed resampled audio into porcupine
@@ -150,5 +142,51 @@ def wait_for_wake_word(sensitivities, wakewords, mic_rate, stop_flag: dict = {'s
         if porcupine.process(audio_resampled) >= 0:
             print("Wake word detected!")
             break
-    pa.close(audio_stream)
     return True
+
+
+def get_audio_stream(mic_rate, frames_per_buffer=FRAMES_PER_BUFFER):
+    return AudioStreamSingleton.get_audio_stream(mic_rate, frames_per_buffer)
+
+
+def close_audio_stream():
+    return AudioStreamSingleton.close_audio()
+
+
+class AudioStreamSingleton:
+    _audio_stream = None
+    _pa_instance = None
+    _current_mic_rate = -1
+    _current_frames_per_buffer = -1
+
+    @classmethod
+    def get_audio_stream(cls, mic_rate, frames_per_buffer):
+        update_instance = False
+        if cls._audio_stream and (
+                mic_rate != cls._current_mic_rate or frames_per_buffer != cls._current_frames_per_buffer):
+            update_instance = True
+
+        if cls._audio_stream is None or update_instance:
+            if update_instance:
+                print("New audio parameters requested. Instantiating new singletons.")
+            cls._pa_instance = pyaudio.PyAudio()
+            cls._audio_stream = cls._pa_instance.open(
+                rate=mic_rate,
+                channels=CHANNELS,
+                format=pyaudio.paInt16,
+                input=True,
+                frames_per_buffer=frames_per_buffer,
+            )
+            cls._current_mic_rate = mic_rate
+            cls._current_frames_per_buffer = frames_per_buffer
+
+        return cls._audio_stream, cls._pa_instance
+
+    @classmethod
+    def close_audio(cls):
+        if cls._audio_stream is not None:
+            cls._audio_stream.close()
+            cls._audio_stream = None
+        if cls._pa_instance is not None:
+            cls._pa_instance.terminate()
+            cls._pa_instance = None

@@ -1,27 +1,27 @@
-import wave
-import pyaudio
 import os
-from gpt_client import GptClient, InvalidInputError
-from preprocessing import preprocess
-from .state_interface import State
-import polly_client
-import numpy as np
-import traceback
-import time
 import queue
 import threading
+import time
+import traceback
+import wave
+
+import numpy as np
 import pvcobra
-from audio_utils import resample_audio, transcribe_audio, stream_audio, wait_for_wake_word
+import pyaudio
+
+import audio_utils as audio
+from gpt_client import GptClient, InvalidInputError
+from polly_client import audio_chunk_generator
+from preprocessing import Action, preprocess
+from .state_interface import State
 
 VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
-VOICE_DETECTION_THRESHOLD = 0.45
-CHANNELS = 1
-FRAMES_PER_BUFFER = 1024
+VOICE_DETECTION_THRESHOLD = 0.5  # voice activity sensitivity
 MAX_DURATION = 25  # how long to listen for regardless of voice detection
 ENDING_PAUSE_TIME = 1  # seconds of pause before listening stops
 QUEUE_TIMEOUT = 5  # how long for pipeline to wait for an empty queue
 INITIAL_PAUSE_TIME = 4  # time to wait for first words
-TRANSCRIPTION_FILE = "transcription.wav"
+TRANSCRIPTION_FILE = "tmp_transcription.wav"
 MAX_LLM_RETRIES = 2  # max llm timeouts
 MAX_TTS_RETRIES = 2  # max tts timeouts
 MAX_STT_RETRIES = 2  # max stt timeouts
@@ -29,26 +29,13 @@ MAX_STT_RETRIES = 2  # max stt timeouts
 
 def initialize_audio_file(pa, mic_rate):
     wf = wave.open(TRANSCRIPTION_FILE, 'wb')
-    wf.setnchannels(CHANNELS)
+    wf.setnchannels(audio.CHANNELS)
     wf.setsampwidth(pa.get_sample_size(pyaudio.paInt16))
     wf.setframerate(mic_rate)
     return wf
 
 
-def setup_audio_stream(mic_rate):
-    pa = pyaudio.PyAudio()
-    audio_stream = pa.open(
-        rate=mic_rate,
-        channels=CHANNELS,
-        format=pyaudio.paInt16,
-        input=True,
-        frames_per_buffer=FRAMES_PER_BUFFER,
-    )
-    return audio_stream, pa
-
-
 def record_query(audio_stream, audio_file, voice_detected, mic_rate, mic_amplification_factor):
-    # record
     cobra_vad = pvcobra.create(access_key=os.getenv('PICOVOICE_API_KEY'))
     audio_stream.start_stream()
     frames = []
@@ -58,10 +45,8 @@ def record_query(audio_stream, audio_file, voice_detected, mic_rate, mic_amplifi
     start_time = time.time()
     pause_time = INITIAL_PAUSE_TIME
     while time.time() - start_time <= MAX_DURATION:
-        # TODO audio_stream.read sometimes (only at first?) takes a long time with usb sound. this is a pyaudio audio stream
-        # TODO try using a single pyaudio object for everything (pvporcupine, etc.)
-        audio_data = audio_stream.read(FRAMES_PER_BUFFER, exception_on_overflow=False)
-        audio_data = resample_audio(audio_data, mic_rate, VOICE_DETECTION_RATE)
+        audio_data = audio_stream.read(audio.FRAMES_PER_BUFFER, exception_on_overflow=False)
+        audio_data = audio.resample_audio(audio_data, mic_rate, VOICE_DETECTION_RATE)
 
         if audio_data is not None:
             buffer = np.concatenate((buffer, audio_data))
@@ -91,19 +76,17 @@ def record_query(audio_stream, audio_file, voice_detected, mic_rate, mic_amplifi
     print("")  # newline
     # write audio to the file
     audio_file.writeframes(b''.join(frames))
-    audio_file.close()
     return voice_detected
 
 
-def tts(file):
-    # TRANSCRIBE
+def speech_to_text(file):
     print("Transcribing audio...")
     start_time = time.time()
     retries = 0
     question_text = ""
     while retries < MAX_STT_RETRIES:
         try:
-            question_text = transcribe_audio(file)
+            question_text = audio.transcribe_audio(file)
             break
         except TimeoutError:
             print(f"STT timeout. Retrying {MAX_STT_RETRIES - retries - 1} more times...")
@@ -139,11 +122,12 @@ class Listening(State):
 
             try:
                 # record query
-                audio_stream, pa = setup_audio_stream(self.sound_config['microphone']['rate'])
+                audio_stream, pa = audio.get_audio_stream(self.sound_config['microphone']['rate'])
                 audio_file = initialize_audio_file(pa, self.sound_config['microphone']['rate'])
                 voice_detected = record_query(audio_stream, audio_file, voice_detected,
                                               self.sound_config['microphone']['rate'],
                                               self.sound_config['microphone']['amplification'])
+                audio_file.close()
 
                 if not voice_detected:
                     print("No speech detected. Exiting state...")
@@ -155,7 +139,7 @@ class Listening(State):
                 self.light.begin_pulse()
 
                 # transcribe
-                question_text = tts(TRANSCRIPTION_FILE)
+                question_text = speech_to_text(TRANSCRIPTION_FILE)
 
                 # process answer
                 action, response = self.preprocess_text(question_text)
@@ -164,7 +148,6 @@ class Listening(State):
                     break
 
                 # begin pipeline to play response
-                pa.terminate()  # terminate so the stop_word detector can use the mic
                 self.light.turn_off()
                 timeout_flag, continue_conversation = self.run_response_pipeline(response, question_text,
                                                                                  proc_start_time)
@@ -182,13 +165,9 @@ class Listening(State):
             finally:
                 try:
                     os.remove(TRANSCRIPTION_FILE)
-                    if 'pa' in locals():
-                        pa.terminate()
                 except OSError:
                     pass
                 if audio_stream is not None:
-                    audio_stream.stop_stream()
-                    audio_stream.close()
                     self.light.turn_off()
 
         return True
@@ -256,7 +235,7 @@ class Listening(State):
                                 first_chunk = False
                         else:
                             break
-                        for audio_chunk in polly_client.audio_chunk_generator(self.persona, response_chunk):
+                        for audio_chunk in audio_chunk_generator(self.persona, response_chunk):
                             if shared_vars['stop_playback']:
                                 # stop word detected
                                 while not text_queue.empty():
@@ -301,7 +280,10 @@ class Listening(State):
                                 print(
                                     f"Total time since query: {shared_vars['audio_received_time'] - proc_start_time:.2f} seconds")
                                 first_chunk = False
-                            stream_audio(audio_chunk, volume=self.sound_config['speaker']['volume'])
+                            audio.stream_audio(audio_chunk, self.sound_config['polly']['rate'],
+                                               self.sound_config['speaker']['rate'],
+                                               volume=self.sound_config['speaker']['volume'],
+                                               device_name=self.sound_config['speaker']['device_name'])
                     except queue.Empty:
                         if shared_vars['timeout_flag']:
                             break
@@ -310,24 +292,28 @@ class Listening(State):
             shared_vars['stop_playback'] = True
 
         def monitor_stop_word():
-            shared_vars['stop_playback'] = wait_for_wake_word([0.6], self.persona.stop_words,
-                                                              self.sound_config['microphone']['rate'],
-                                                              shared_vars)
+            shared_vars['stop_playback'] = audio.wait_for_wake_word([0.6], self.persona.stop_words,
+                                                                    self.sound_config['microphone']['rate'],
+                                                                    shared_vars)
 
-        # start threads
+        # create threads
         text_thread = threading.Thread(target=enqueue_text)
         audio_thread = threading.Thread(target=enqueue_audio)
         stream_thread = threading.Thread(target=stream_audio_chunks)
         stop_word_thread = threading.Thread(target=monitor_stop_word)
+
         # set threads to terminate with main program
         audio_thread.daemon = True
         text_thread.daemon = True
         stream_thread.daemon = True
         stop_word_thread.daemon = True
+
+        # start threads
         text_thread.start()
         audio_thread.start()
         stream_thread.start()
         stop_word_thread.start()
+
         # wait for threads to finish
         text_thread.join()
         audio_thread.join()
@@ -343,12 +329,12 @@ class Listening(State):
         action, question_text = preprocess(question_text)
         preprocess_time = time.time() - start_time
         print(f"Preprocessing complete ({preprocess_time:.2f} seconds)")
-        if action == -1:  # drop
+        if action == Action.DROP:
             print("Filtered out locally.")
-        elif action == 1:  # replace
+        elif action == Action.REPLACE:
             response = question_text
             print("Answering locally...")
-        elif action == 2:  # volume adjust
+        elif action == Action.VOLUME_ADJUST:
             response = "Done."
             print(f"Setting volume to {float(question_text) * 100}%.")
             self.sound_config['speaker']['volume'] = question_text

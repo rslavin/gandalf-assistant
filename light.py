@@ -1,6 +1,7 @@
 import threading
-import RPi.GPIO as GPIO
 import time
+
+import RPi.GPIO as GPIO
 
 MAX_PULSE_BRIGHTNESS = 75
 MIN_PULSE_BRIGHTNESS = 5

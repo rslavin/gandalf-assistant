@@ -1,9 +1,10 @@
-from boto3 import Session
-from botocore.exceptions import BotoCoreError, ClientError
-from contextlib import closing
 import os
 import sys
+from contextlib import closing
 from tempfile import gettempdir
+
+from boto3 import Session
+from botocore.exceptions import BotoCoreError, ClientError
 from timeout_function_decorator.timeout_decorator import timeout
 
 

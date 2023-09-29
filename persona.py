@@ -43,4 +43,4 @@ class Persona:
                                                                                                int) else DEFAULT_VOICE_RATE
         for path in self.wake_words:
             if not os.path.exists(path):
-                raise FileNotFoundError(filename=path, strerror=f"The file '{path}' does not exist.")
+                raise FileNotFoundError()

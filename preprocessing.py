@@ -1,6 +1,13 @@
-import time
-import re
 import random
+import re
+import time
+from enum import Enum
+
+
+class Action(Enum):
+    DROP = -1
+    REPLACE = 1
+    VOLUME_ADJUST = 2
 
 
 def preprocess(query: str):
@@ -104,6 +111,7 @@ def check_for_date(query, current_time):
         return random.choice(date_responses).format(date_1=time.strftime("%A, %B", current_time),
                                                     date_2=number_suffix(
                                                         int(time.strftime("%d", current_time).lstrip("0"))))
+
 
 # TODO "let me start over" should delete all text before it.
 

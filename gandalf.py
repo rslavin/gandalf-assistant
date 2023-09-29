@@ -1,14 +1,16 @@
+import json
+import os
+import subprocess
+from sys import argv
+
+import RPi.GPIO as GPIO
 import pyaudio
+from dotenv import load_dotenv
+
+from light import Light
+from persona import Persona
 from states.asleep import Asleep
 from states.listening import Listening
-from dotenv import load_dotenv
-import RPi.GPIO as GPIO
-from light import Light
-import subprocess
-import os
-import json
-from sys import argv
-from persona import Persona
 
 load_dotenv()
 
