@@ -7,7 +7,6 @@ import wave
 
 import numpy as np
 import pvcobra
-import pyaudio
 
 import audio_utils as audio
 from gpt_client import GptClient, InvalidInputError
@@ -35,13 +34,12 @@ def initialize_audio_file(mic_rate):
     return wf
 
 
-def record_query(audio_stream, audio_file, voice_detected, mic_rate, mic_amplification_factor):
-    cobra_vad = pvcobra.create(access_key=os.getenv('PICOVOICE_API_KEY'))
+def record_query(audio_stream, audio_file, voice_detected, mic_rate, mic_amplification_factor, vad):
     audio_stream.start_stream()
     frames = []
     buffer = np.array([], dtype=np.int16)
     silence_since = time.time()
-    frame_length = cobra_vad.frame_length
+    frame_length = vad.frame_length
     start_time = time.time()
     pause_time = INITIAL_PAUSE_TIME
     while time.time() - start_time <= MAX_DURATION:
@@ -60,7 +58,7 @@ def record_query(audio_stream, audio_file, voice_detected, mic_rate, mic_amplifi
                 frame = np.int16(frame * mic_amplification_factor)
 
                 try:
-                    if cobra_vad.process(frame) > VOICE_DETECTION_THRESHOLD:
+                    if vad.process(frame) > VOICE_DETECTION_THRESHOLD:
                         silence_since = time.time()
                         voice_detected = True
                         pause_time = ENDING_PAUSE_TIME  # reset pause time after first words
@@ -111,6 +109,7 @@ class Listening(State):
         self.persona = persona
         self.sound_config = sound_config
         self.light = light
+        self.vad = pvcobra.create(access_key=os.getenv('PICOVOICE_API_KEY'))
 
     def run(self):
         while True:
@@ -126,7 +125,8 @@ class Listening(State):
                 audio_file = initialize_audio_file(self.sound_config['microphone']['rate'])
                 voice_detected = record_query(audio_stream, audio_file, voice_detected,
                                               self.sound_config['microphone']['rate'],
-                                              self.sound_config['microphone']['amplification'])
+                                              self.sound_config['microphone']['amplification'],
+                                              self.vad)
                 audio_file.close()
 
                 if not voice_detected:

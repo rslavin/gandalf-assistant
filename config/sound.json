@@ -1,7 +1,7 @@
 {
   "microphone": {
     "rate": 16000,
-    "amplification": 10
+    "amplification": 5
   },
   "speaker": {
     "rate": 48000,
