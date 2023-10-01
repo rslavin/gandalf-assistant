@@ -167,6 +167,7 @@ class GptClient:
             "role": role,
             "content": message
         }
+        # TODO add timestamp
         self.conversation.append(message)
         if to_disk:
             try:

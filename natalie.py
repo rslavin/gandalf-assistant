@@ -5,13 +5,14 @@ import subprocess
 from sys import argv
 
 import RPi.GPIO as GPIO
-import pyaudio
 from dotenv import load_dotenv
 
 from light import Light
 from persona import Persona
 from states.asleep import Asleep
 from states.listening import Listening
+from web.web_service import WebService
+from gpt_client import GptClient
 
 load_dotenv()
 
@@ -19,7 +20,7 @@ LED_PIN = 20
 SOUND_CONFIG_PATH = "config/sound.json"
 
 
-class Gandalf:
+class Natalie:
     def __init__(self):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         file_path = os.path.join(dir_path, SOUND_CONFIG_PATH)
@@ -46,11 +47,14 @@ class Gandalf:
             file_path = os.path.join(dir_path, f"assets/{self.persona.startup_sound}")
             subprocess.call(["xdg-open", file_path])
 
+        self.web_service = WebService()
+        self.web_service.run_threaded()
+
         self.light = Light(LED_PIN)
         self.light.blink(2)
         self.states = [
             Asleep(self.persona.wake_words, self.sound_config['microphone']['rate']),
-            Listening(self.light, self.persona, self.sound_config)
+            Listening(self.light, self.persona, self.sound_config, self.web_service)
         ]
         self.current_state = 0
 
@@ -65,5 +69,5 @@ class Gandalf:
 
 
 if __name__ == "__main__":
-    gandalf = Gandalf()
-    gandalf.run()
+    natalie = Natalie()
+    natalie.run()

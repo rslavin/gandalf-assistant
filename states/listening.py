@@ -13,6 +13,7 @@ from gpt_client import GptClient, InvalidInputError
 from polly_client import audio_chunk_generator
 from preprocessing import Action, preprocess
 from .state_interface import State
+from web.web_service import WebService
 
 VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
 VOICE_DETECTION_THRESHOLD = 0.5  # voice activity sensitivity
@@ -104,8 +105,10 @@ def speech_to_text(file):
 
 class Listening(State):
 
-    def __init__(self, light, persona, sound_config):
+    def __init__(self, light, persona, sound_config, web_service: WebService):
         self.llm = GptClient(persona)
+        web_service.set_llm(self.llm)
+        self.web_service = web_service
         self.persona = persona
         self.sound_config = sound_config
         self.light = light
@@ -149,6 +152,11 @@ class Listening(State):
 
                 # begin pipeline to play response
                 self.light.turn_off()
+                if response is not None:
+                    self.web_service.send_new_user_msg(question_text)
+                else:
+                    self.web_service.send_new_user_msg(question_text)
+
                 timeout_flag, continue_conversation = self.run_response_pipeline(response, question_text,
                                                                                  proc_start_time)
 
@@ -190,11 +198,13 @@ class Listening(State):
             if response is not None:
                 text_queue.put(response)
                 text_queue.put(None)
+                self.web_service.send_new_assistant_msg(response)
             else:  # ask LLM
                 retries = 0
                 while retries < MAX_LLM_RETRIES:
                     try:
                         response_generator = self.llm.get_response_generator(question_text)
+                        first_chunk = True
                         for response_chunk in response_generator:
                             if shared_vars['stop_playback']:
                                 # stop word detected
@@ -202,8 +212,15 @@ class Listening(State):
                             text_queue.put(response_chunk)
                             if response_chunk is None:
                                 break
+
+                            if first_chunk:
+                                first_chunk = False
+                                self.web_service.send_new_assistant_msg(response_chunk)
+                            else:
+                                self.web_service.append_assistant_msg(response_chunk)
                         break  # generator has been fully consumed, so exit the loop
                     except InvalidInputError:
+                        self.web_service.send_new_assistant_msg("Invalid query.")
                         shared_vars['continue_conversation'] = False
                         break
                     except TimeoutError:
