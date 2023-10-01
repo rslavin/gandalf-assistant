@@ -205,7 +205,7 @@
                             <div class="mx-auto py-5 col-md-6 col-lg-7 col-xl-10 d-flex flex-column"
                                  style="height: 100%;">
 
-                                <div class="chat-cards flex-grow-1 position-relative overflow-auto d-flex flex-column">
+                                <div id="chat-list-container" class="chat-cards flex-grow-1 position-relative overflow-auto d-flex flex-column scrollbar">
                                     <ul id="chat-container" class="list-unstyled mb-0 mt-auto">
                                     </ul>
                                 </div>
@@ -257,7 +257,7 @@
 
 
 <!--TEMPLATES-->
-<li id="user-msg-template" class="d-flex justify-content-between mb-4 user-msg d-none">
+<li id="user-msg-template" class="d-flex justify-content-between mb-4 mx-2 user-msg d-none">
     <img src="https://dummyimage.com/128x128/354ea1/ffffff&text=U"
          alt="avatar"
          class="rounded-circle d-flex align-self-start me-3 shadow-1-strong"
@@ -275,7 +275,7 @@
         </div>
     </div>
 </li>
-<li id="assistant-msg-template" class="d-flex justify-content-between mb-4 d-none assistant-msg">
+<li id="assistant-msg-template" class="d-flex justify-content-between mb-4 mx-2 d-none assistant-msg">
     <div class="card flex-grow-1 msg-card">
         <div class="card-header d-flex justify-content-between p-3">
             <p class="fw-bold mb-0">Natalie</p>
@@ -358,6 +358,7 @@
             templateId = "assistant-msg-template"
         }
         const chatBox = document.getElementById('chat-container');
+        const scrollBox = document.getElementById('chat-list-container');
         const template = document.getElementById(templateId);
         const newMessage = template.cloneNode(true);
 
@@ -371,7 +372,7 @@
             messageBubble.classList.add("bg-secondary")
 
         chatBox.appendChild(newMessage);
-        chatBox.scrollTop = chatBox.scrollHeight;
+        scrollBox.scrollTop = scrollBox.scrollHeight;
     }
 
     function appendMessage(role, message) {

@@ -34,8 +34,14 @@ class WebService(metaclass=SingletonMeta):
     def _setup_socket_events(self):
         @self.socketio.on("connect")
         def handle_connect():
+            if self.llm:
+                messages = self.llm.conversation
+                for message in messages:
+                    if message['role'] == "assistant":
+                        self.send_new_assistant_msg(message['content'], "server")
+                    else:
+                        self.send_new_user_msg(message['content'], "server")
             print("New web client connection.")
-            self.emit_update("init", {"variable": "initial_value"},)
 
         @self.socketio.on('client_user_msg')
         def handle_recv_user_msg(message):
