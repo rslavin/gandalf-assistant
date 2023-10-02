@@ -45,18 +45,18 @@ class WebService(metaclass=SingletonMeta):
 
         @self.socketio.on('client_user_msg')
         def handle_recv_user_msg(message):
-            print("hi")
             self.send_new_user_msg(message, "web")
             # TODO preprocess!
+            # TODO maintain newlines (test with a poem)
             try:
                 gen = self.llm.get_response_generator(message)
                 first = True
-                for message in gen:
+                for chunk in gen:
                     if first:
-                        self.send_new_assistant_msg(message, "web")
+                        self.send_new_assistant_msg(chunk, "web")
                         first = False
                     else:
-                        self.append_assistant_msg(message, "web")
+                        self.append_assistant_msg(chunk, "web")
             except InvalidInputError:
                 self.send_new_assistant_msg("Invalid query.", "web")
             except TimeoutError:

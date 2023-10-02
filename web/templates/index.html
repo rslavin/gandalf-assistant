@@ -202,7 +202,7 @@
 
 
                         <div class="row d-flex flex-column" style="height: 100vh;">
-                            <div class="mx-auto py-5 col-md-6 col-lg-7 col-xl-10 d-flex flex-column"
+                            <div class="mx-auto pe-0 col-md-6 col-lg-7 col-xl-10 d-flex flex-column"
                                  style="height: 100%;">
 
                                 <div id="chat-list-container" class="chat-cards flex-grow-1 position-relative overflow-auto d-flex flex-column scrollbar">
@@ -376,11 +376,13 @@
     }
 
     function appendMessage(role, message) {
+        const scrollBox = document.getElementById('chat-list-container');
         const elements = document.querySelectorAll('#chat-container .assistant-msg');
         const assistantElement = elements[elements.length - 1];
         const textParagraph = assistantElement.querySelector('.msg');
 
-        textParagraph.textContent += message;
+        textParagraph.innerHTML += message.replace(/\n/g, '<br>');
+        scrollBox.scrollTop = scrollBox.scrollHeight;
     }
 </script>
 
