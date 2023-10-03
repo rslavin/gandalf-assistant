@@ -150,6 +150,7 @@ class GptClient:
         Removes older messages from conversation to make room for max token count.
         :return:
         """
+        # TODO at fixed intervals, make a separate request to summarize the important parts of the history for long term
         # self.total_tokens includes the system token count
         while self.total_tokens > MAX_MODEL_TOKENS - MAX_RESPONSE_TOKENS:
             removed_message = self.conversation.pop(0)
@@ -165,14 +166,21 @@ class GptClient:
 
         message = {
             "role": role,
-            "content": message
+            "content": message,
+            # "origin": "web|voice",
+            # "timestamp": "time",
+            # "tokens": message_tokens,
+            # "model": model,
         }
         # TODO add timestamp
         self.conversation.append(message)
         if to_disk:
             try:
-                with open(self.pkl_file, "ab+") as f:
+                # store in a tmp file in case the file terminates while writing. This mitigates corruptions.
+                temp_filename = f"{self.pkl_file}.tmp"
+                with open(temp_filename, "ab+") as f:
                     pickle.dump(message, f)
+                os.rename(temp_filename, self.pkl_file)
             except Exception as e:
                 print(f"Unable to write to {self.pkl_file}: {e}")
 
