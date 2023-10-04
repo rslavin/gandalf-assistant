@@ -1,5 +1,4 @@
 pvporcupine==2.2.1
-PyAudio==0.2.13
 python-dotenv==1.0.0
 openai~=0.27.10
 numpy~=1.24.4

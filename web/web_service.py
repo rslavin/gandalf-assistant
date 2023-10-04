@@ -47,7 +47,7 @@ class WebService(metaclass=SingletonMeta):
         def handle_recv_user_msg(message):
             self.send_new_user_msg(message, "web")
             # TODO preprocess!
-            # TODO maintain newlines (test with a poem)
+            # TODO ``code`` and copy
             try:
                 gen = self.llm.get_response_generator(message)
                 first = True

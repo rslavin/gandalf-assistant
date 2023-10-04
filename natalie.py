@@ -12,7 +12,6 @@ from persona import Persona
 from states.asleep import Asleep
 from states.listening import Listening
 from web.web_service import WebService
-from gpt_client import GptClient
 
 load_dotenv()
 

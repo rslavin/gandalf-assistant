@@ -143,6 +143,9 @@ class Listening(State):
 
                 # transcribe
                 question_text = speech_to_text(TRANSCRIPTION_FILE)
+                if not question_text:
+                    print("Unable to convert speech to text...")
+                    break
 
                 # process answer
                 action, response = self.preprocess_text(question_text)
