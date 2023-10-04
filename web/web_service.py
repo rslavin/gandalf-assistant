@@ -41,7 +41,7 @@ class WebService(metaclass=SingletonMeta):
                         self.send_new_assistant_msg(message['content'], "server")
                     else:
                         self.send_new_user_msg(message['content'], "server")
-            print("New web client connection.")
+                print(f"New web client connection. Sending {len(messages)} messages from conversation.")
 
         @self.socketio.on('client_user_msg')
         def handle_recv_user_msg(message):

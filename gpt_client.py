@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import pickle
 import re
 from datetime import datetime
@@ -75,8 +76,12 @@ class GptClient:
                     except EOFError:
                         break
             self.make_room()
+            shutil.copy(self.pkl_file, f"{self.pkl_file}.backup")
         except Exception as e:
             print(f"The following exception occurred when trying to load {self.pkl_file}: {e}")
+            print("Recovering backup...")
+            shutil.copy(f"{self.pkl_file}.backup", self.pkl_file)
+
         if self.conversation:
             print(f"{self.persona.name}'s conversation history successfully loaded.")
         else:
@@ -177,12 +182,13 @@ class GptClient:
         if to_disk:
             try:
                 # store in a tmp file in case the file terminates while writing. This mitigates corruptions.
-                temp_filename = f"{self.pkl_file}.tmp"
-                with open(temp_filename, "ab+") as f:
+                with open(self.pkl_file, "ab+") as f:
                     pickle.dump(message, f)
-                os.rename(temp_filename, self.pkl_file)
+                shutil.copy(self.pkl_file, f"{self.pkl_file}.tmp")
             except Exception as e:
                 print(f"Unable to write to {self.pkl_file}: {e}")
+                print("Recovering backup...")
+                shutil.copy(f"{self.pkl_file}.tmp", self.pkl_file)
 
     def get_conversation(self):
         conversation = self.conversation[:-3] + [self.system_msg] + self.conversation[-2:]
