@@ -5,6 +5,12 @@ DEFAULT_LLM_TEMPERATURE = 1
 DEFAULT_VOICE_RATE = 100
 
 
+def add_wake_word_paths(wake_word_tuple, dir_path):
+    file_paths, sensitivities = zip(*wake_word_tuple)
+    file_paths = [os.path.join(dir_path, "assets", w) for w in file_paths]
+    return [[w, s] for w, s in zip(file_paths, sensitivities)]
+
+
 # TODO load a different persona depending on the wake word
 class Persona:
     """
@@ -34,13 +40,13 @@ class Persona:
         self.voice_engine = data['voice']['engine']
         self.personality_rules = data['personality_rules']
         self.startup_sound = data['startup_sound'] if 'startup_sound' in data else None
-        self.wake_words = list(map(lambda w: os.path.join(dir_path, "assets", w), data['wake_words']))
-        self.stop_words = list(map(lambda w: os.path.join(dir_path, "assets", w), data['stop_words']))
+        self.wake_words = add_wake_word_paths(data['wake_words'], dir_path)
+        self.stop_words = add_wake_word_paths(data['stop_words'], dir_path)
         self.sample_rate = sample_rate
         self.temperature = int(data['temperature']) if 'temperature' in data and isinstance(data['temperature'], (
             int, float)) else DEFAULT_LLM_TEMPERATURE
         self.voice_rate = int(data['voice']['rate']) if 'rate' in data['voice'] and isinstance(data['voice']['rate'],
                                                                                                int) else DEFAULT_VOICE_RATE
-        for path in self.wake_words:
-            if not os.path.exists(path):
+        for wake_word in self.wake_words:
+            if not os.path.exists(wake_word[0]):
                 raise FileNotFoundError()

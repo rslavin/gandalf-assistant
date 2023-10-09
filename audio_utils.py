@@ -114,11 +114,11 @@ def stream_audio(audio_chunk, audio_rate, speaker_rate, volume=0.5, device_name=
     sd.wait()
 
 
-def wait_for_wake_word(sensitivities, wakewords, mic_rate, stop_flag: dict = {'stop_playback': False}):
+def wait_for_wake_word(wakeword_sensitivity_pairs, mic_rate, stop_flag: dict = {'stop_playback': False}):
     # TODO filter out the system's voice based on its frequency (180 - 300) or only look at my voice's (80 - 120
     # stop_flag must be mutable since it may be shared between threads
     dir_path = os.path.dirname(os.path.realpath(__file__))
-    # TODO include sensitivities for wakewords
+    wakewords, sensitivities = zip(*wakeword_sensitivity_pairs)
     file_paths = list(map(lambda file: os.path.join(dir_path, "..", file), wakewords))
     porcupine = pvporcupine.create(
         access_key=os.getenv('PICOVOICE_API_KEY'),

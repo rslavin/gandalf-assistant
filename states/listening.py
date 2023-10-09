@@ -313,7 +313,7 @@ class Listening(State):
 
         def monitor_stop_word():
             # TODO get wakeword sensitivities from persona
-            shared_vars['stop_playback'] = audio.wait_for_wake_word([0.6], self.persona.stop_words,
+            shared_vars['stop_playback'] = audio.wait_for_wake_word(self.persona.stop_words,
                                                                     self.sound_config['microphone']['rate'],
                                                                     shared_vars)
 

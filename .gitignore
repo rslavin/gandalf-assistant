@@ -2,3 +2,4 @@
 .idea
 .env
 .requirements_hash
+assets/*.ppn

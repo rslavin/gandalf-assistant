@@ -6,10 +6,10 @@
     "rate": 110
   },
   "wake_words": [
-    "natalie_en_raspberry-pi_v2_2_0.ppn"
+    ["natalie_en_raspberry-pi_v2_2_0.ppn", 0.6]
   ],
   "stop_words": [
-    "natalie-stop_en_raspberry-pi_v2_2_0.ppn"
+    ["natalie-stop_en_raspberry-pi_v2_2_0.ppn", 0.6]
   ],
   "personality_rules": [
     "The following are directives that you should follow for the duration of this conversation.",
