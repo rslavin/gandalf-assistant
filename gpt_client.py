@@ -12,9 +12,10 @@ from timeout_function_decorator.timeout_decorator import timeout
 # max tokens the model can handle - lowering this can reduce api cost since the entire conversation is sent
 # with each request
 # TODO pay attention to short replies that occur due to long conversations: https://platform.openai.com/docs/guides/gpt/managing-tokens
-MAX_MODEL_TOKENS = 8192
-# MAX_MODEL_TOKENS = 3000
-MODEL = "gpt-3.5-turbo-16k"
+# MAX_MODEL_TOKENS = 8192
+MAX_MODEL_TOKENS = 3000
+# MODEL = "gpt-3.5-turbo-16k"
+MODEL = "gpt-4-1106-preview"
 # MODEL = "gpt-4"
 # TODO set a token threshold where it will switch from gpt4 to gpt3 after using too many tokens
 MAX_RESPONSE_TOKENS = 200  # max tokens in response
@@ -158,6 +159,7 @@ class GptClient:
         # TODO at fixed intervals, make a separate request to summarize the important parts of the history for long term
         # self.total_tokens includes the system token count
         while self.total_tokens > MAX_MODEL_TOKENS - MAX_RESPONSE_TOKENS:
+            # TODO instead of popping one at a time, keep a token count with each message so the messages can be more easily pruned
             removed_message = self.conversation.pop(0)
             removed_token_count = count_tokens(removed_message['content'])
             self.total_tokens -= removed_token_count
