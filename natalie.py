@@ -7,7 +7,8 @@ from sys import argv
 import RPi.GPIO as GPIO
 from dotenv import load_dotenv
 
-from light import Light
+from devices.light import Light
+from devices.bluetooth_light import BTLight
 from persona import Persona
 from states.asleep import Asleep
 from states.listening import Listening
@@ -50,11 +51,14 @@ class Natalie:
         self.web_service.run_threaded()
 
         self.light = Light(LED_PIN)
-        self.light.blink(2)
+        self.bt_light = BTLight()
+
         self.states = [
             Asleep(self.persona.wake_words, self.sound_config['microphone']['rate']),
-            Listening(self.light, self.persona, self.sound_config, self.web_service)
+            Listening(self.light, self.bt_light, self.persona, self.sound_config, self.web_service)
         ]
+        self.light.blink(2)
+        self.bt_light.blink(2)
         self.current_state = 0
 
     def run(self):

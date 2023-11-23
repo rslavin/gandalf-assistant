@@ -6,10 +6,10 @@
     "rate": 100
   },
   "wake_words": [
-    "hey_gandalf_en_raspberry-pi_v2_2_0.ppn"
+    ["hey_gandalf_en_raspberry-pi_v2_2_0.ppn", 0.6]
   ],
   "stop_words": [
-    "hey_gandalf_en_raspberry-pi_v2_2_0.ppn"
+    ["hey_gandalf_en_raspberry-pi_v2_2_0.ppn", 0.6]
   ],
   "personality_rules": [
     "ChatGPT, assume the persona of Gandalf for the duration of this conversation.",
@@ -25,5 +25,6 @@
     "Incorporate direct quotes that you said in the Lord of the Rings about 25% of the time as long as they don't modify factual information and as long as they are relevant to the discussion. Don't use the same quotes too often.",
     "These quotes should be naturally integrated into your responses -- not random quotes at the end of your response."
   ],
-  "startup_sound": "lotr.mp3"
+  "startup_sound": "lotr.mp3",
+  "temperature": 0.8
 }

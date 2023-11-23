@@ -105,19 +105,21 @@ def speech_to_text(file):
 
 class Listening(State):
 
-    def __init__(self, light, persona, sound_config, web_service: WebService):
+    def __init__(self, light, bt_light, persona, sound_config, web_service: WebService):
         self.llm = GptClient(persona)
         web_service.set_llm(self.llm)
         self.web_service = web_service
         self.persona = persona
         self.sound_config = sound_config
         self.light = light
+        self.bt_light = bt_light
         self.vad = pvcobra.create(access_key=os.getenv('PICOVOICE_API_KEY'))
 
     def run(self):
         while True:
             voice_detected = False
             self.light.turn_on()
+            self.bt_light.turn_on()
             print("Entering Listening state.")
 
             audio_stream = None
@@ -135,11 +137,13 @@ class Listening(State):
                 if not voice_detected:
                     print("No speech detected. Exiting state...")
                     self.light.turn_off()
+                    self.bt_light.turn_off()
                     break
 
                 # begin processing
                 proc_start_time = time.time()
                 self.light.begin_pulse()
+                self.bt_light.begin_pulse()
 
                 # transcribe
                 question_text = speech_to_text(TRANSCRIPTION_FILE)
@@ -154,7 +158,8 @@ class Listening(State):
                     break
 
                 # begin pipeline to play response
-                self.light.turn_off()
+                # self.light.turn_off()
+                # self.bt_light.turn_off()
                 if response is not None:
                     self.web_service.send_new_user_msg(question_text)
                 else:
@@ -178,8 +183,11 @@ class Listening(State):
                     os.remove(TRANSCRIPTION_FILE)
                 except OSError:
                     pass
-                if audio_stream is not None:
-                    self.light.turn_off()
+                self.light.turn_off()
+                self.bt_light.turn_off()
+                time.sleep(0.5)
+                self.light.blink(1)
+                self.bt_light.blink(1)
 
         return True
 
@@ -294,6 +302,8 @@ class Listening(State):
                             break
                         else:
                             if first_chunk:
+                                self.light.turn_off()
+                                self.bt_light.turn_off()
                                 shared_vars['audio_received_time'] = time.time()
                                 print(
                                     f"First audio chunk received ({shared_vars['audio_received_time'] - shared_vars['text_received_time']:.2f} seconds)")
@@ -307,6 +317,9 @@ class Listening(State):
                     except queue.Empty:
                         if shared_vars['timeout_flag']:
                             break
+                    finally:
+                        self.light.turn_off()
+                        self.bt_light.turn_off()
             else:
                 print("Skipping audio stream due to timeout.")
             shared_vars['stop_playback'] = True

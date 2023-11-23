@@ -10,12 +10,12 @@ MIN_PULSE_BRIGHTNESS = 5
 def pulse_led(p, stop_event):
     p.start(0)
     while not stop_event.is_set():
-        for i in range(MIN_PULSE_BRIGHTNESS, MAX_PULSE_BRIGHTNESS + 1):
+        for i in range(MAX_PULSE_BRIGHTNESS, MIN_PULSE_BRIGHTNESS - 1, -1):
             if stop_event.is_set():
                 break
             p.ChangeDutyCycle(i)
             time.sleep(0.01)
-        for i in range(MAX_PULSE_BRIGHTNESS, MIN_PULSE_BRIGHTNESS - 1, -1):
+        for i in range(MIN_PULSE_BRIGHTNESS, MAX_PULSE_BRIGHTNESS + 1):
             if stop_event.is_set():
                 break
             p.ChangeDutyCycle(i)

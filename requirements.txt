@@ -1,5 +1,6 @@
 pvporcupine==2.2.1
 python-dotenv==1.0.0
+pyserial==3.5
 openai~=0.27.10
 numpy~=1.24.4
 scipy~=1.11.2
@@ -10,3 +11,5 @@ pydub~=0.25.1
 sounddevice~=0.4.6
 tiktoken~=0.3.1
 flask~=3.0.0
+bleak~=0.21.1
+PyAudio~=0.2.13
