@@ -35,7 +35,7 @@ class Natalie:
         persona_name = argv[1] if len(argv) > 1 else "natalie"
         persona_name = persona_name.rstrip(".json")
         try:
-            self.persona = Persona(persona_name, self.sound_config['polly']['rate'])
+            self.persona = Persona(persona_name, self.sound_config['tts']['rate'])
         except FileNotFoundError as e:
             print(f"'{e.filename}' does not exist.")
             exit(-1)

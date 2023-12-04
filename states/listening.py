@@ -9,8 +9,9 @@ import numpy as np
 import pvcobra
 
 import audio_utils as audio
+from clients.riva_tts import RivaTTS
+from clients.polly_tts import PollyTTS
 from gpt_client import GptClient, InvalidInputError
-from polly_client import audio_chunk_generator
 from preprocessing import Action, preprocess
 from .state_interface import State
 from web.web_service import WebService
@@ -106,8 +107,8 @@ def speech_to_text(file):
 class Listening(State):
 
     def __init__(self, light, bt_light, persona, sound_config, web_service: WebService):
-        self.llm = GptClient(persona)
-        web_service.set_llm(self.llm)
+        self.llm_client = GptClient(persona)
+        web_service.set_llm(self.llm_client)
         self.web_service = web_service
         self.persona = persona
         self.sound_config = sound_config
@@ -115,14 +116,18 @@ class Listening(State):
         self.bt_light = bt_light
         self.vad = pvcobra.create(access_key=os.getenv('PICOVOICE_API_KEY'))
 
+        # TODO load appropriate clients depending on config
+        # TODO also load appropriate modules based on config
+
+        # self.tts_client = RivaTTS(self.persona, sample_rate=self.sound_config['tts']['rate'])
+        self.tts_client = PollyTTS(self.persona)
+
     def run(self):
         while True:
             voice_detected = False
             self.light.turn_on()
             self.bt_light.turn_on()
             print("Entering Listening state.")
-
-            audio_stream = None
 
             try:
                 # record query
@@ -146,6 +151,7 @@ class Listening(State):
                 self.bt_light.begin_pulse()
 
                 # transcribe
+                # TODO add this to streaming pipeline
                 question_text = speech_to_text(TRANSCRIPTION_FILE)
                 if not question_text:
                     print("Unable to convert speech to text...")
@@ -185,9 +191,9 @@ class Listening(State):
                     pass
                 self.light.turn_off()
                 self.bt_light.turn_off()
-                time.sleep(0.5)
-                self.light.blink(1)
-                self.bt_light.blink(1)
+        time.sleep(0.5)
+        self.light.blink(1)
+        self.bt_light.blink(1)
 
         return True
 
@@ -214,7 +220,7 @@ class Listening(State):
                 retries = 0
                 while retries < MAX_LLM_RETRIES:
                     try:
-                        response_generator = self.llm.get_response_generator(question_text)
+                        response_generator = self.llm_client.get_response_generator(question_text)
                         first_chunk = True
                         for response_chunk in response_generator:
                             if shared_vars['stop_playback']:
@@ -263,7 +269,7 @@ class Listening(State):
                                 first_chunk = False
                         else:
                             break
-                        for audio_chunk in audio_chunk_generator(self.persona, response_chunk):
+                        for audio_chunk in self.tts_client.audio_chunk_generator(response_chunk):
                             if shared_vars['stop_playback']:
                                 # stop word detected
                                 while not text_queue.empty():
@@ -310,7 +316,7 @@ class Listening(State):
                                 print(
                                     f"Total time since query: {shared_vars['audio_received_time'] - proc_start_time:.2f} seconds")
                                 first_chunk = False
-                            audio.stream_audio(audio_chunk, self.sound_config['polly']['rate'],
+                            audio.stream_audio(audio_chunk, self.sound_config['tts']['rate'],
                                                self.sound_config['speaker']['rate'],
                                                volume=self.sound_config['speaker']['volume'],
                                                device_name=self.sound_config['speaker']['device_name'])

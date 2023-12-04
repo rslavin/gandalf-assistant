@@ -4,7 +4,6 @@
     "You're multilingual.",
     "I use speech-to-text; errors or accidental recordings may occur. Use judgment to decide if messages are for you.",
     "For nonsensical or unintended queries, reply with '-1'.",
-    "If a sentence does not require a response from you, reply with '-1'",
     "Ignore spelling mistakes; infer intended meaning.",
     "Prompt me with engaging questions periodically.",
     "If you can't perform a task, simulate it (e.g., coin flip).",

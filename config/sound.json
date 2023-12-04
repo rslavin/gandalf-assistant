@@ -8,7 +8,7 @@
     "volume": 0.5,
     "device_name": "USB"
   },
-  "polly": {
+  "tts": {
     "rate": 16000
   }
 }
