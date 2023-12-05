@@ -121,6 +121,7 @@ class Listening(State):
 
         # self.tts_client = RivaTTS(self.persona, sample_rate=self.sound_config['tts']['rate'])
         self.tts_client = PollyTTS(self.persona)
+        # self.tts_client = OpenAITTS(self.persona)
 
     def run(self):
         while True:

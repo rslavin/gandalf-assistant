@@ -85,7 +85,7 @@ def frequency_filter(frame, cutoff_low=15, cutoff_high=250, sample_rate=16000):
 @timeout(6)
 def transcribe_audio(file_path):
     with open(file_path, "rb") as audio_file:
-        question_text = openai.Audio.transcribe(
+        question_text = openai.audio.transcriptions.create(
             file=audio_file,
             model="whisper-1",
             response_format="text",

@@ -5,7 +5,7 @@ import pickle
 import re
 from datetime import datetime
 
-import openai
+from openai import OpenAI
 from tiktoken import encoding_for_model
 from timeout_function_decorator.timeout_decorator import timeout
 
@@ -48,7 +48,7 @@ def get_system_directives():
 
 class GptClient:
     def __init__(self, persona):
-        openai.api_key = os.getenv("OPENAI_API_KEY")
+        self.llm_client = OpenAI(api_key=os.getenv("OPEN_API_KEY"))
         self.persona = persona
         # load from disk
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -93,7 +93,7 @@ class GptClient:
         self.append_message("user", message, to_disk=True)
         self.make_room()
 
-        chat = openai.ChatCompletion.create(
+        chat = self.llm_client.chat.completions.create(
             model=MODEL,
             messages=self.get_conversation(),
             temperature=self.persona.temperature,
@@ -119,17 +119,15 @@ class GptClient:
 
         sentence_buffer = ""
         response = ""
-        for chunk in openai.ChatCompletion.create(
+        for chunk in self.llm_client.chat.completions.create(
                 model=MODEL,
                 messages=self.get_conversation(),
                 temperature=self.persona.temperature,
                 max_tokens=MAX_RESPONSE_TOKENS,
                 stream=True
         ):
-            content_gen = chunk["choices"][0].get("delta", {}).get("content")
-            if content_gen is not None:
-                content = ''.join(content_gen)  # yielded strings/words
-                sentence_buffer += content  # current sentence
+            if chunk.choices[0].delta.content is not None:
+                sentence_buffer += chunk.choices[0].delta.content # current sentence
 
                 # check if the buffer contains a full sentence
                 if re.search(r"[^\s.\d]{2,}[\.\?!\n]", sentence_buffer):
