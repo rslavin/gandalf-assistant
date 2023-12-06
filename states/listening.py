@@ -9,9 +9,9 @@ import numpy as np
 import pvcobra
 
 import audio_utils as audio
-from clients.riva_tts import RivaTTS
-from clients.polly_tts import PollyTTS
-from gpt_client import GptClient, InvalidInputError
+# from clients.riva_tts import RivaTTS as tts_client
+from clients.polly_tts import PollyTTS as tts_client
+from conversationmanager import ConversationManager, InvalidInputError
 from preprocessing import Action, preprocess
 from .state_interface import State
 from web.web_service import WebService
@@ -107,8 +107,8 @@ def speech_to_text(file):
 class Listening(State):
 
     def __init__(self, light, bt_light, persona, sound_config, web_service: WebService):
-        self.llm_client = GptClient(persona)
-        web_service.set_llm(self.llm_client)
+        self.conversation_manager = ConversationManager(persona)
+        web_service.set_llm(self.conversation_manager)
         self.web_service = web_service
         self.persona = persona
         self.sound_config = sound_config
@@ -120,7 +120,7 @@ class Listening(State):
         # TODO also load appropriate modules based on config
 
         # self.tts_client = RivaTTS(self.persona, sample_rate=self.sound_config['tts']['rate'])
-        self.tts_client = PollyTTS(self.persona)
+        self.tts_client = tts_client(self.persona)
         # self.tts_client = OpenAITTS(self.persona)
 
     def run(self):
@@ -221,9 +221,10 @@ class Listening(State):
                 retries = 0
                 while retries < MAX_LLM_RETRIES:
                     try:
-                        response_generator = self.llm_client.get_response_generator(question_text)
+                        response_generator = self.conversation_manager.get_response(question_text)
                         first_chunk = True
                         for response_chunk in response_generator:
+                            print(response_chunk)
                             if shared_vars['stop_playback']:
                                 # stop word detected
                                 break
@@ -270,7 +271,7 @@ class Listening(State):
                                 first_chunk = False
                         else:
                             break
-                        for audio_chunk in self.tts_client.audio_chunk_generator(response_chunk):
+                        for audio_chunk in self.tts_client.get_audio_generator(response_chunk):
                             if shared_vars['stop_playback']:
                                 # stop word detected
                                 while not text_queue.empty():

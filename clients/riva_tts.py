@@ -35,7 +35,7 @@ class RivaTTS(TTSClient):
         self.interrupted = False
 
     @timeout(8)
-    def audio_chunk_generator(self, text):
+    def get_audio_generator(self, text):
         # text = self.buffer_text(text)
         text = self.filter_text(text)
         text = self.apply_ssml(text)

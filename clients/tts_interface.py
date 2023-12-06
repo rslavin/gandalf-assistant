@@ -7,7 +7,7 @@ class TTSClient(ABC):
         self.persona = persona
 
     @abstractmethod
-    def audio_chunk_generator(self, text):
+    def get_audio_generator(self, text):
         raise NotImplementedError(f"TTS Client {type(self)} has not implemented audio_chunk_generator()")
 
     def filter_text(self, text):

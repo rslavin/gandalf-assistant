@@ -1,7 +1,7 @@
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 import threading
-from gpt_client import InvalidInputError
+from conversationmanager import InvalidInputError
 
 
 class SingletonMeta(type):
@@ -23,7 +23,7 @@ class WebService(metaclass=SingletonMeta):
         self.socketio = SocketIO(self.app)
         self._setup_routes()
         self._setup_socket_events()
-        self.llm = None
+        self.conversation_manager = None
         self.initialized = True
 
     def _setup_routes(self):
@@ -34,8 +34,8 @@ class WebService(metaclass=SingletonMeta):
     def _setup_socket_events(self):
         @self.socketio.on("connect")
         def handle_connect():
-            if self.llm:
-                messages = self.llm.conversation
+            if self.conversation_manager:
+                messages = self.conversation_manager.conversation
                 for message in messages:
                     if message['role'] == "assistant":
                         self.send_new_assistant_msg(message['content'], "server")
@@ -49,7 +49,7 @@ class WebService(metaclass=SingletonMeta):
             # TODO preprocess!
             # TODO ``code`` and copy
             try:
-                gen = self.llm.get_response_generator(message)
+                gen = self.conversation_manager.get_response(message)
                 first = True
                 for chunk in gen:
                     if first:
@@ -63,7 +63,7 @@ class WebService(metaclass=SingletonMeta):
                 pass
 
     def set_llm(self, llm):
-        self.llm = llm
+        self.conversation_manager = llm
 
     def emit_update(self, msg_type, message, origin="server"):
         if message is not None:
