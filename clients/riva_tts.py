@@ -9,6 +9,8 @@ import riva.client.audio_io
 from timeout_function_decorator.timeout_decorator import timeout
 from .tts_interface import TTSClient
 
+SAMPLE_RATE = 16000
+
 
 class RivaTTS(TTSClient):
 
@@ -27,7 +29,7 @@ class RivaTTS(TTSClient):
 
         self.persona = persona
         self.language_code = language_code
-        self.sample_rate = self.persona.sample_rate
+        self.sample_rate = SAMPLE_RATE
 
         self.needs_text_by = 0
         self.text_buffer = ''

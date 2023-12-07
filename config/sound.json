@@ -7,8 +7,5 @@
     "rate": 48000,
     "volume": 0.5,
     "device_name": "USB"
-  },
-  "tts": {
-    "rate": 16000
   }
 }

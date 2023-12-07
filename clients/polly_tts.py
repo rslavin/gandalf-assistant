@@ -6,11 +6,14 @@ from botocore.exceptions import BotoCoreError, ClientError
 from timeout_function_decorator.timeout_decorator import timeout
 from .tts_interface import TTSClient
 
+SAMPLE_RATE = 16000
+
 
 class PollyTTS(TTSClient):
 
     def __init__(self, persona):
         super().__init__(persona)
+        self.sample_rate = SAMPLE_RATE
 
     @timeout(8)
     def get_audio_generator(self, text):
@@ -23,7 +26,7 @@ class PollyTTS(TTSClient):
             # Request speech synthesis
             text = self.apply_ssml(text)
             response = polly.synthesize_speech(Text=text, TextType="ssml", OutputFormat="pcm",
-                                               SampleRate=str(self.persona.sample_rate),
+                                               SampleRate=str(self.sample_rate),
                                                VoiceId=self.persona.voice_id, Engine=self.persona.voice_engine)
         except (BotoCoreError, ClientError) as error:
             print(error)

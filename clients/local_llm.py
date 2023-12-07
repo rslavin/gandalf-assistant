@@ -1,12 +1,11 @@
+import json
 import os
 
 import requests
-
-from .llm_interface import LlmClient
-from openai import OpenAI
 from dotenv import load_dotenv
 from timeout_function_decorator.timeout_decorator import timeout
-import json
+
+from .llm_interface import LlmClient
 
 MAX_RESPONSE_TOKENS = 200
 
@@ -32,7 +31,7 @@ class LocalLlm(LlmClient):
         # uses "bot" instead of "assistant" -- also add the </s> back to bot messages
         messages = [{**message, 'role': 'bot', 'content': message['content'] + "</s>"} if message['role'] == 'assistant' else message for message in messages]
         messages = json.dumps({"messages": messages})
-        print(f"sending: {messages}")
+
         for chunk in requests.post(os.getenv("LOCAL_LLM_URL"), messages, stream=True, headers=headers):
             if chunk:
                 chunk = chunk.decode('utf-8')

@@ -1,11 +1,10 @@
 import json
 import os
-import shutil
 import pickle
 import re
+import shutil
 from datetime import datetime
 
-from openai import OpenAI
 from tiktoken import encoding_for_model
 
 # from clients.gpt_llm import GptLlm as llm_client
@@ -79,7 +78,13 @@ class ConversationManager:
         except Exception as e:
             print(f"The following exception occurred when trying to load {self.pkl_file}: {e}")
             print("Recovering backup...")
-            shutil.copy(f"{self.pkl_file}.backup", self.pkl_file)
+            try:
+                shutil.copy(f"{self.pkl_file}.backup", self.pkl_file)
+                print("Success!")
+                self.load_conversation()
+                return
+            except Exception as e2:
+                print("Backup not recoverable")
 
         if self.conversation:
             print(f"{self.persona.name}'s conversation history successfully loaded.")

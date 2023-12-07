@@ -14,8 +14,8 @@ import audio_utils as audio
 from clients.polly_tts import PollyTTS as tts_client
 from conversationmanager import ConversationManager, InvalidInputError
 from preprocessing import Action, preprocess
-from .state_interface import State
 from web.web_service import WebService
+from .state_interface import State
 
 VOICE_DETECTION_RATE = 16000  # voice detection rate to be downsampled to
 VOICE_DETECTION_THRESHOLD = 0.5  # voice activity sensitivity
@@ -319,7 +319,7 @@ class Listening(State):
                                     f"Total time since query: {shared_vars['audio_received_time'] - proc_start_time:.2f} seconds")
                                 first_chunk = False
                             # TODO move tts rate to tts clients
-                            audio.stream_audio(audio_chunk, self.sound_config['tts']['rate'],
+                            audio.stream_audio(audio_chunk, self.tts_client.sample_rate,
                                                self.sound_config['speaker']['rate'],
                                                volume=self.sound_config['speaker']['volume'],
                                                device_name=self.sound_config['speaker']['device_name'])

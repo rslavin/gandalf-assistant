@@ -23,7 +23,7 @@ class Persona:
         KeyError if a key is missing in the json file.
     """
 
-    def __init__(self, persona_name, sample_rate):
+    def __init__(self, persona_name):
         dir_path = os.path.dirname(os.path.realpath(__file__))
         file_path = os.path.join(dir_path, f"personas/{persona_name.lower()}.json")
 
@@ -42,7 +42,6 @@ class Persona:
         self.startup_sound = data['startup_sound'] if 'startup_sound' in data else None
         self.wake_words = add_wake_word_paths(data['wake_words'], dir_path)
         self.stop_words = add_wake_word_paths(data['stop_words'], dir_path)
-        self.sample_rate = sample_rate
         self.temperature = int(data['temperature']) if 'temperature' in data and isinstance(data['temperature'], (
             int, float)) else DEFAULT_LLM_TEMPERATURE
         self.voice_rate = int(data['voice']['rate']) if 'rate' in data['voice'] and isinstance(data['voice']['rate'],
