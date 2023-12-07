@@ -43,7 +43,7 @@ class RivaTTS(TTSClient):
         if not text or self.interrupted:
             return
 
-        print(f"generating TTS for '{text}'")
+        # print(f"generating TTS for '{text}'")
 
         responses = self.tts_service.synthesize_online(
             text, self.persona.voice_id, self.language_code, sample_rate_hz=self.sample_rate

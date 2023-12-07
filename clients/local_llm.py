@@ -1,3 +1,5 @@
+import os
+
 import requests
 
 from .llm_interface import LlmClient
@@ -17,16 +19,24 @@ class LocalLlm(LlmClient):
         super().__init__(persona)
         self.max_response_tokens = max_tokens
         self.model = None
+        self.first_message = True  # the api only requires the most recent message once it has built a cache
 
     @timeout(8)
     def response_generator(self, messages):
+        suffix = "</s>"
         headers = {'Content-Type': 'application/json'}
-        # uses "bot" instead of "assistant"
-        messages = [{**message, 'role': 'bot'} if message['role'] == 'assistant' else message for message in messages]
+        if self.first_message:
+            self.first_message = False
+        else:
+            messages = [messages[-1]]
+        # uses "bot" instead of "assistant" -- also add the </s> back to bot messages
+        messages = [{**message, 'role': 'bot', 'content': message['content'] + "</s>"} if message['role'] == 'assistant' else message for message in messages]
         messages = json.dumps({"messages": messages})
-        for chunk in requests.post("http://ramza.lan:8050/generate", messages, stream=True, headers=headers):
+        print(f"sending: {messages}")
+        for chunk in requests.post(os.getenv("LOCAL_LLM_URL"), messages, stream=True, headers=headers):
             if chunk:
-                yield chunk.decode('utf-8').rstrip("</s>")
+                chunk = chunk.decode('utf-8')
+                yield chunk[:-len(suffix)] if chunk.endswith("</s>") else chunk
 
     # @timeout(15)
     # def get_response(self, message):

@@ -131,7 +131,7 @@ class ConversationManager:
         """
         # TODO at fixed intervals, make a separate request to summarize the important parts of the history for long term
         # self.total_tokens includes the system token count
-        while self.total_tokens > MAX_CONVERSATION_TOKENS - self.llm_client.max_response_tokens:
+        while len(self.conversation) > 1 and self.total_tokens > MAX_CONVERSATION_TOKENS - self.llm_client.max_response_tokens:
             # TODO instead of popping one at a time, keep a token count with each message so the messages can be more easily pruned
             removed_message = self.conversation.pop(0)
             removed_token_count = count_tokens(removed_message['content'], self.llm_client.model)
@@ -166,7 +166,8 @@ class ConversationManager:
                 shutil.copy(f"{self.pkl_file}.tmp", self.pkl_file)
 
     def get_conversation(self):
-        conversation = self.conversation[:-3] + [self.system_msg] + self.conversation[-2:]
+        # conversation = self.conversation[:-3] + [self.system_msg] + self.conversation[-2:]
+        conversation = [self.system_msg] + self.conversation
         # pprint(conversation)
         return conversation
 
