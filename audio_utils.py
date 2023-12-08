@@ -1,3 +1,4 @@
+import logging
 import math
 import os
 import struct
@@ -140,7 +141,7 @@ def wait_for_wake_word(wakeword_sensitivity_pairs, mic_rate, stop_flag: dict = {
         # TODO add keywords. Return value is the one detected
         # TODO dynamically filter them out here based on persona
         if porcupine.process(audio_resampled) >= 0:
-            print("Wake word detected!")
+            logging.info("Wake word detected!")
             break
     return True
 
@@ -168,7 +169,7 @@ class AudioStreamSingleton:
 
         if cls._audio_stream is None or update_instance:
             if update_instance:
-                print("New audio parameters requested. Instantiating new singletons.")
+                logging.debug("New audio parameters requested. Instantiating new singletons.")
             cls._pa_instance = pyaudio.PyAudio()
             cls._audio_stream = cls._pa_instance.open(
                 rate=mic_rate,

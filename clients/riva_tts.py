@@ -1,12 +1,12 @@
 import logging
 import os
 import time
-import numpy as np
 
+import numpy as np
 import riva.client
 import riva.client.audio_io
-
 from timeout_function_decorator.timeout_decorator import timeout
+
 from .tts_interface import TTSClient
 
 SAMPLE_RATE = 16000
@@ -45,7 +45,7 @@ class RivaTTS(TTSClient):
         if not text or self.interrupted:
             return
 
-        # print(f"generating TTS for '{text}'")
+        # logging.info(f"generating TTS for '{text}'")
 
         responses = self.tts_service.synthesize_online(
             text, self.persona.voice_id, self.language_code, sample_rate_hz=self.sample_rate

@@ -3,17 +3,18 @@ import os
 import pickle
 import re
 import shutil
+import logging
 from datetime import datetime
 
 from tiktoken import encoding_for_model
 
-# from clients.gpt_llm import GptLlm as llm_client
-from clients.local_llm import LocalLlm as llm_client
+from clients.gpt_llm import GptLlm as llm_client
+# from clients.local_llm import LocalLlm as llm_client
 
 # max tokens the model can handle - lowering this can reduce api cost since the entire conversation is sent
 # with each request
 # TODO pay attention to short replies that occur due to long conversations: https://platform.openai.com/docs/guides/gpt/managing-tokens
-MAX_CONVERSATION_TOKENS = 3000
+MAX_CONVERSATION_TOKENS = 400
 # TODO set a token threshold where it will switch from gpt4 to gpt3 after using too many tokens
 HISTORY_DIR = "personas"
 DIRECTIVES_PATH = "config/gpt_directives.json"
@@ -38,7 +39,7 @@ def get_system_directives():
         try:
             directives = json.load(f)
         except json.decoder.JSONDecodeError:
-            print(f"Error in gpt directives file (extra comma?): {file_path}")
+            logging.error(f"Error in gpt directives file (extra comma?): {file_path}")
             exit(1)
     return directives['directives']
 
@@ -59,9 +60,6 @@ class ConversationManager:
         self.pkl_file = os.path.join(dir_path, HISTORY_DIR, conv_file)
         self.conversation = []
         self.load_conversation()
-        self.make_room()
-        # if self.conversation:
-        #     pprint(self.conversation)
 
     def load_conversation(self):
         try:
@@ -70,26 +68,26 @@ class ConversationManager:
                     try:
                         msg = pickle.load(f)
                         # pprint(msg)
-                        self.append_message(msg['role'], msg['content'])
+                        self.append_message(msg['role'], msg['content'], silent=True)
                     except EOFError:
                         break
-            self.make_room()
+            self.make_room(silent=True)
             shutil.copy(self.pkl_file, f"{self.pkl_file}.backup")
         except Exception as e:
-            print(f"The following exception occurred when trying to load {self.pkl_file}: {e}")
-            print("Recovering backup...")
+            logging.warning(f"The following exception occurred when trying to load {self.pkl_file}: {e}")
+            logging.warning("Recovering backup...")
             try:
                 shutil.copy(f"{self.pkl_file}.backup", self.pkl_file)
-                print("Success!")
+                logging.warning("Success!")
                 self.load_conversation()
                 return
             except Exception as e2:
-                print("Backup not recoverable")
+                logging.warning("Backup not recoverable")
 
         if self.conversation:
-            print(f"{self.persona.name}'s conversation history successfully loaded.")
+            logging.info(f"{self.persona.name}'s conversation history successfully loaded.")
         else:
-            print("The conversation was not loaded. A new conversation has been created.")
+            logging.warning("The conversation was not loaded. A new conversation has been created.")
 
     def get_total_token_count(self):
         total = count_tokens(self.system_msg['content'], self.llm_client.model)
@@ -113,15 +111,15 @@ class ConversationManager:
                 if re.search(r"[^\s.\d]{2,}[\.\?!\n]", sentence_buffer):
                     sentence_buffer = re.sub(r"^\[.+\] ", '', sentence_buffer)
                     response += sentence_buffer
-                    print(f'\t"{sentence_buffer.strip()}"')
+                    logging.info(f'\t"{sentence_buffer.strip()}"')
                     yield sentence_buffer
                     sentence_buffer = ""
         if sentence_buffer:
             if sentence_buffer in ["1", "-1"]:  # anything left over that wasn't identified as a sentence
-                print("Nonsense detected!")
+                logging.info("Nonsense detected!")
                 raise InvalidInputError("Nonsense detected")
             else:
-                print(f'\t"{sentence_buffer.strip()}"')
+                logging.info(f'\t"{sentence_buffer.strip()}"')
                 response += sentence_buffer
                 yield sentence_buffer
         # TODO if the choices[0].get("finish_reason") is "length", have the system let the user know they've reached
@@ -129,7 +127,7 @@ class ConversationManager:
         self.append_message("assistant", response, to_disk=True)
         yield None
 
-    def make_room(self):
+    def make_room(self, silent=False):
         """
         Removes older messages from conversation to make room for max token count.
         :return:
@@ -141,13 +139,16 @@ class ConversationManager:
             removed_message = self.conversation.pop(0)
             removed_token_count = count_tokens(removed_message['content'], self.llm_client.model)
             self.total_tokens -= removed_token_count
-            print(f"Pruning history to make room... {removed_token_count} tokens freed.")
+            if not silent:
+                logging.info(f"Pruning history to make room... {removed_token_count} tokens freed.")
 
-    def append_message(self, role, message, to_disk=False):
+    def append_message(self, role, message, to_disk=False, silent=False):
         message_tokens = count_tokens(message, self.llm_client.model)
-        print(f"Message tokens: {message_tokens}")
+        if not silent:
+            logging.info(f"Message tokens: {message_tokens}")
         self.total_tokens += message_tokens
-        print(f"Total tokens: {self.total_tokens} / {MAX_CONVERSATION_TOKENS}")
+        if not silent:
+            logging.info(f"Total tokens: {self.total_tokens} / {MAX_CONVERSATION_TOKENS}")
 
         message = {
             "role": role,
@@ -166,8 +167,8 @@ class ConversationManager:
                     pickle.dump(message, f)
                 shutil.copy(self.pkl_file, f"{self.pkl_file}.tmp")
             except Exception as e:
-                print(f"Unable to write to {self.pkl_file}: {e}")
-                print("Recovering backup...")
+                logging.warning(f"Unable to write to {self.pkl_file}: {e}")
+                logging.warning("Recovering backup...")
                 shutil.copy(f"{self.pkl_file}.tmp", self.pkl_file)
 
     def get_conversation(self):

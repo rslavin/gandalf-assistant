@@ -1,5 +1,6 @@
 #!/bin/env python3
 import json
+import logging
 import os
 import subprocess
 from sys import argv
@@ -18,6 +19,9 @@ load_dotenv()
 
 LED_PIN = 20
 SOUND_CONFIG_PATH = "config/sound.json"
+logging.basicConfig(level=logging.INFO,
+                    format='[%(asctime)s] %(levelname)s: %(message)s',
+                    datefmt='%H:%M:%S')
 
 
 class Natalie:
@@ -29,7 +33,7 @@ class Natalie:
             try:
                 self.sound_config = json.load(f)
             except json.decoder.JSONDecodeError:
-                print(f"Error in sound config file (extra comma?): {file_path}")
+                logging.error(f"Error in sound config file (extra comma?): {file_path}")
                 exit(1)
 
         persona_name = argv[1] if len(argv) > 1 else "natalie"
@@ -37,10 +41,10 @@ class Natalie:
         try:
             self.persona = Persona(persona_name)
         except FileNotFoundError as e:
-            print(f"'{e.filename}' does not exist.")
+            logging.error(f"'{e.filename}' does not exist.")
             exit(-1)
         except KeyError as e:
-            print(f"'{e.args[0]}' key missing from sound config file.")
+            logging.error(f"'{e.args[0]}' key missing from sound config file.")
             exit(-1)
 
         if self.persona.startup_sound and os.getenv('APP_ENV') != "LOCAL":
@@ -67,7 +71,7 @@ class Natalie:
                 self.states[self.current_state].run()
                 self.current_state = (self.current_state + 1) % len(self.states)
         except KeyboardInterrupt:
-            print("Cleaning up and exiting...")
+            logging.info("Cleaning up and exiting...")
             GPIO.cleanup()
 
 

@@ -1,9 +1,11 @@
+import logging
 import os
 from contextlib import closing
 
 from boto3 import Session
 from botocore.exceptions import BotoCoreError, ClientError
 from timeout_function_decorator.timeout_decorator import timeout
+
 from .tts_interface import TTSClient
 
 SAMPLE_RATE = 16000
@@ -29,7 +31,7 @@ class PollyTTS(TTSClient):
                                                SampleRate=str(self.sample_rate),
                                                VoiceId=self.persona.voice_id, Engine=self.persona.voice_engine)
         except (BotoCoreError, ClientError) as error:
-            print(error)
+            logging.error(error)
             return None
 
         if "AudioStream" in response:
@@ -42,5 +44,5 @@ class PollyTTS(TTSClient):
                         break
                     yield audio_chunk
         else:
-            print("Could not stream audio")
+            logging.warning("Could not stream audio")
             yield None

@@ -18,16 +18,16 @@ class LocalLlm(LlmClient):
         super().__init__(persona)
         self.max_response_tokens = max_tokens
         self.model = None
-        self.first_message = True  # the api only requires the most recent message once it has built a cache
+        # self.first_message = True  # the api only requires the most recent message once it has built a cache
 
     @timeout(8)
     def response_generator(self, messages):
         suffix = "</s>"
         headers = {'Content-Type': 'application/json'}
-        if self.first_message:
-            self.first_message = False
-        else:
-            messages = [messages[-1]]
+        # if self.first_message:
+        #     self.first_message = False
+        # else:
+        #     messages = [messages[-1]]
         # uses "bot" instead of "assistant" -- also add the </s> back to bot messages
         messages = [{**message, 'role': 'bot', 'content': message['content'] + "</s>"} if message['role'] == 'assistant' else message for message in messages]
         messages = json.dumps({"messages": messages})

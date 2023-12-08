@@ -1,3 +1,4 @@
+import logging
 import os
 import queue
 import threading
@@ -69,9 +70,9 @@ def record_query(audio_stream, audio_file, voice_detected, mic_rate, mic_amplifi
                     else:
                         print("-", end="", flush=True)
                 except Exception as e:
-                    print(f"Error detecting voice: {e}")
+                    logging.error(f"Error detecting voice: {e}")
                     traceback.print_exc()
-                    exit()
+                    exit(-1)
 
         frames.append(audio_data)
     print("")  # newline
@@ -81,7 +82,7 @@ def record_query(audio_stream, audio_file, voice_detected, mic_rate, mic_amplifi
 
 
 def speech_to_text(file):
-    print("Transcribing audio...")
+    logging.info("Transcribing audio...")
     start_time = time.time()
     retries = 0
     question_text = ""
@@ -90,18 +91,18 @@ def speech_to_text(file):
             question_text = audio.transcribe_audio(file)
             break
         except TimeoutError:
-            print(f"STT timeout. Retrying {MAX_STT_RETRIES - retries - 1} more times...")
+            logging.warning(f"STT timeout. Retrying {MAX_STT_RETRIES - retries - 1} more times...")
             retries += 1
         except Exception as e:
-            print(f"Unknown error when attempting STT: {e}")
+            logging.error(f"Unknown error when attempting STT: {e}")
             return False
     if not question_text:
-        print("Unable to connect to STT service.")
+        logging.error("Unable to connect to STT service.")
         return False
     question_text = question_text.strip('\n')
     transcribe_time = time.time() - start_time
-    print(f"Transcription complete ({transcribe_time:.2f} seconds)")
-    print(f"I heard '{question_text}'")
+    logging.info(f"Transcription complete ({transcribe_time:.2f} seconds)")
+    logging.info(f"I heard '{question_text}'")
     return question_text
 
 
@@ -129,7 +130,7 @@ class Listening(State):
             voice_detected = False
             self.light.turn_on()
             self.bt_light.turn_on()
-            print("Entering Listening state.")
+            logging.info("Entering Listening state.")
 
             try:
                 # record query
@@ -142,7 +143,7 @@ class Listening(State):
                 audio_file.close()
 
                 if not voice_detected:
-                    print("No speech detected. Exiting state...")
+                    logging.info("No speech detected. Exiting state...")
                     self.light.turn_off()
                     self.bt_light.turn_off()
                     break
@@ -156,7 +157,7 @@ class Listening(State):
                 # TODO add this to streaming pipeline
                 question_text = speech_to_text(TRANSCRIPTION_FILE)
                 if not question_text:
-                    print("Unable to convert speech to text...")
+                    logging.warning("Unable to convert speech to text...")
                     break
 
                 # process answer
@@ -182,7 +183,7 @@ class Listening(State):
                 time.sleep(0.5)
 
             except Exception as e:
-                print(f"An error occurred: {e}")
+                logging.error(f"An error occurred: {e}")
                 traceback.print_exc()
                 return False
 
@@ -243,10 +244,10 @@ class Listening(State):
                         shared_vars['continue_conversation'] = False
                         break
                     except TimeoutError:
-                        print(f"LLM timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")
+                        logging.warning(f"LLM timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")
                         retries += 1
                     except Exception as e:
-                        print(f"Unknown error when attempting LLM request: {e}")
+                        logging.error(f"Unknown error when attempting LLM request: {e}")
                         traceback.print_exc()
                         retries += 1
                     finally:
@@ -266,8 +267,7 @@ class Listening(State):
                         if response_chunk is not None:
                             if first_chunk:
                                 shared_vars['text_received_time'] = time.time()
-                                print(
-                                    f"First text chunk received ({shared_vars['text_received_time'] - start_time:.2f} seconds)")
+                                logging.info(f"First text chunk received ({shared_vars['text_received_time'] - start_time:.2f} seconds)")
                                 first_chunk = False
                         else:
                             break
@@ -279,21 +279,21 @@ class Listening(State):
                                 break
                             voice_queue.put(audio_chunk)
                     except TimeoutError:
-                        print(f"TTS timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")
+                        logging.warning(f"TTS timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")
                         retries += 1
                     except queue.Empty:
                         # check if there was a timeout and, if so, terminate
                         if shared_vars['timeout_flag']:
                             break
                     except Exception as e:
-                        print(f"Unknown error when attempting TTS request: {e}")
+                        logging.error(f"Unknown error when attempting TTS request: {e}")
                         retries += 1
 
                 voice_queue.put(None)
                 if retries > MAX_TTS_RETRIES:
                     shared_vars['timeout_flag'] = True
             else:
-                print("Skipping audio enqueue due to LLM timeout.")
+                logging.warning("Skipping audio enqueue due to LLM timeout.")
 
         def stream_audio_chunks():
             first_chunk = True
@@ -313,10 +313,8 @@ class Listening(State):
                                 self.light.turn_off()
                                 self.bt_light.turn_off()
                                 shared_vars['audio_received_time'] = time.time()
-                                print(
-                                    f"First audio chunk received ({shared_vars['audio_received_time'] - shared_vars['text_received_time']:.2f} seconds)")
-                                print(
-                                    f"Total time since query: {shared_vars['audio_received_time'] - proc_start_time:.2f} seconds")
+                                logging.info(f"First audio chunk received ({shared_vars['audio_received_time'] - shared_vars['text_received_time']:.2f} seconds)")
+                                logging.info(f"Total time since query: {shared_vars['audio_received_time'] - proc_start_time:.2f} seconds")
                                 first_chunk = False
                             # TODO move tts rate to tts clients
                             audio.stream_audio(audio_chunk, self.tts_client.sample_rate,
@@ -330,7 +328,7 @@ class Listening(State):
                         self.light.turn_off()
                         self.bt_light.turn_off()
             else:
-                print("Skipping audio stream due to timeout.")
+                logging.warning("Skipping audio stream due to timeout.")
             shared_vars['stop_playback'] = True
 
         def monitor_stop_word():
@@ -366,22 +364,22 @@ class Listening(State):
         return shared_vars['timeout_flag'], shared_vars['continue_conversation']
 
     def preprocess_text(self, question_text):
-        print("Preprocessing query...")
+        logging.info("Preprocessing query...")
         start_time = time.time()
         response = None
         action, question_text = preprocess(question_text)
         preprocess_time = time.time() - start_time
-        print(f"Preprocessing complete ({preprocess_time:.2f} seconds)")
+        logging.info(f"Preprocessing complete ({preprocess_time:.2f} seconds)")
         if action == Action.DROP:
-            print("Filtered out locally.")
+            logging.info("Filtered out locally.")
         elif action == Action.REPLACE:
             response = question_text
-            print("Answering locally...")
+            logging.info("Answering locally...")
         elif action == Action.VOLUME_ADJUST:
             response = "Done."
-            print(f"Setting volume to {float(question_text) * 100}%.")
+            logging.info(f"Setting volume to {float(question_text) * 100}%.")
             self.sound_config['speaker']['volume'] = question_text
         else:
-            print(f'Asking LLM "{question_text}"...')
+            logging.info(f'Asking LLM "{question_text}"...')
 
         return action, response

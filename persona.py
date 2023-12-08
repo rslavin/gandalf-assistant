@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 DEFAULT_LLM_TEMPERATURE = 1
@@ -31,7 +32,7 @@ class Persona:
             try:
                 data = json.load(f)
             except json.decoder.JSONDecodeError:
-                print(f"Error in persona file (extra comma?): {file_path}")
+                logging.error(f"Error in persona file (extra comma?): {file_path}")
                 exit(1)
         # TODO add a 'mode' with overrides for personality_rules, temperature, voice rate, etc. Store it in the json
         # TODO create commands that switch between

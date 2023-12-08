@@ -1,9 +1,11 @@
+import logging
 import os
-import requests
 import subprocess
 
+import requests
 from openai import OpenAI
 from timeout_function_decorator.timeout_decorator import timeout
+
 from .tts_interface import TTSClient
 
 MODEL = 'tts-1'
@@ -26,7 +28,7 @@ def decode_opus_to_pcm(opus_data):
 
     # check if FFmpeg command was successful
     if process.returncode != 0:
-        print("FFmpeg failed:", stderr.decode())
+        logging.error("FFmpeg failed:", stderr.decode())
         return None
 
     return pcm_data
