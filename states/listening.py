@@ -1,6 +1,8 @@
 import logging
 import os
 import queue
+import re
+import sys
 import threading
 import time
 import traceback
@@ -259,6 +261,7 @@ class Listening(State):
             if not shared_vars['timeout_flag']:
                 retries = 0
                 first_chunk = True
+                sentence_buffer = ""
                 while retries < MAX_TTS_RETRIES:
                     try:
                         if shared_vars['stop_playback']:
@@ -269,15 +272,22 @@ class Listening(State):
                                 shared_vars['text_received_time'] = time.time()
                                 logging.info(f"First text chunk received ({shared_vars['text_received_time'] - start_time:.2f} seconds)")
                                 first_chunk = False
+                            sentence_buffer += response_chunk  # current sentence
                         else:
                             break
-                        for audio_chunk in self.tts_client.get_audio_generator(response_chunk):
-                            if shared_vars['stop_playback']:
-                                # stop word detected
-                                while not text_queue.empty():
-                                    text_queue.get()
-                                break
-                            voice_queue.put(audio_chunk)
+                        # TODO separate by commas at first until the llm has a chance to catch up, then revert to the regex below
+                        # check if the buffer contains a full sentence to send to the tts queue
+                        if re.search(r"[^\s.\d]{2,}[\.\?!\n]", sentence_buffer):
+                            sentence_buffer = re.sub(r"^\[.+\] ", '', sentence_buffer)  # remove timestamp
+                            # logging.info(f'\t"{sentence_buffer.strip()}"')
+                            for audio_chunk in self.tts_client.get_audio_generator(sentence_buffer):
+                                if shared_vars['stop_playback']:
+                                    # stop word detected
+                                    while not text_queue.empty():
+                                        text_queue.get()
+                                    break
+                                voice_queue.put(audio_chunk)
+                            sentence_buffer = ""
                     except TimeoutError:
                         logging.warning(f"TTS timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")
                         retries += 1

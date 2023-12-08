@@ -9,16 +9,19 @@ from .llm_interface import LlmClient
 
 MAX_RESPONSE_TOKENS = 200
 MAX_CONTEXT_TOKENS = 4096
+MODEL = None  # can't be set with this api
 
 load_dotenv()
 
 
 class LocalLlm(LlmClient):
 
-    def __init__(self, persona, max_tokens=MAX_RESPONSE_TOKENS):
+    def __init__(self, persona, max_response_tokens=MAX_RESPONSE_TOKENS, max_context_tokens=MAX_CONTEXT_TOKENS, model=MODEL):
         super().__init__(persona)
-        self.max_response_tokens = max_tokens
-        self.model = None
+
+        self.max_response_tokens = max_response_tokens
+        self.max_context_tokens = max_context_tokens
+        self.model = model
         # self.first_message = True  # the api only requires the most recent message once it has built a cache
 
     @timeout(8)

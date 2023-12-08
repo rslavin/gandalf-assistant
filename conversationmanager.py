@@ -4,13 +4,14 @@ import os
 import pickle
 import re
 import shutil
+import sys
 from datetime import datetime
 
 from tiktoken import encoding_for_model
 
-from clients.gpt_llm import GptLlm as llm_client
+# from clients.gpt_llm import GptLlm as llm_client
 
-# from clients.local_llm import LocalLlm as llm_client
+from clients.local_llm import LocalLlm as llm_client
 
 # TODO pay attention to short replies that occur due to long conversations: https://platform.openai.com/docs/guides/gpt/managing-tokens
 # TODO set a token threshold where it will switch from gpt4 to gpt3 after using too many tokens
@@ -99,31 +100,22 @@ class ConversationManager:
         self.append_message("user", add_timestamp(message), to_disk=True)
         self.make_room()
 
-        sentence_buffer = ""
         response = ""
         for chunk in self.llm_client.response_generator(self.get_conversation()):
             if chunk is not None:
-                sentence_buffer += chunk  # current sentence
+                if not response and chunk in ["1", "-1"]:  # first chunk and nonsense
+                    logging.info("Nonsense detected!")
+                    raise InvalidInputError("Nonsense detected")
 
-                # check if the buffer contains a full sentence
-                if re.search(r"[^\s.\d]{2,}[\.\?!\n]", sentence_buffer):
-                    sentence_buffer = re.sub(r"^\[.+\] ", '', sentence_buffer)
-                    response += sentence_buffer
-                    logging.info(f'\t"{sentence_buffer.strip()}"')
-                    yield sentence_buffer
-                    sentence_buffer = ""
-        if sentence_buffer:
-            if sentence_buffer in ["1", "-1"]:  # anything left over that wasn't identified as a sentence
-                logging.info("Nonsense detected!")
-                raise InvalidInputError("Nonsense detected")
-            else:
-                logging.info(f'\t"{sentence_buffer.strip()}"')
-                response += sentence_buffer
-                yield sentence_buffer
+                response += chunk  # current sentence
+                yield chunk
+                print(chunk, end="", flush=True)
+
         # TODO if the choices[0].get("finish_reason") is "length", have the system let the user know they've reached
         # TODO the directed maximum token limit and ask if they'd like the system to continue. (will have to allow "yes" and "no" through preprocessing)
         self.append_message("assistant", response, to_disk=True)
         yield None
+        print()  # newline
 
     def make_room(self, silent=False):
         """
