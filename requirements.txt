@@ -1,6 +1,6 @@
 pvporcupine==2.2.1
 python-dotenv==1.0.0
-openai~=0.27.10
+openai==1.3.7
 numpy~=1.24.4
 scipy~=1.11.2
 boto3~=1.28.40
