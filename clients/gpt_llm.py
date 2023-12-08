@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from timeout_function_decorator.timeout_decorator import timeout
 
 MAX_RESPONSE_TOKENS = 200
+MAX_CONTEXT_TOKENS = 2048
 MODEL = "gpt-4-1106-preview"
 # MODEL = "gpt-3.5-turbo"
 
@@ -14,9 +15,10 @@ load_dotenv()
 
 class GptLlm(LlmClient):
 
-    def __init__(self, persona, max_tokens=MAX_RESPONSE_TOKENS, model=MODEL):
+    def __init__(self, persona, max_response_tokens=MAX_RESPONSE_TOKENS, max_context_tokens=MAX_CONTEXT_TOKENS, model=MODEL):
         super().__init__(persona)
-        self.max_response_tokens = max_tokens
+        self.max_response_tokens = max_response_tokens
+        self.max_context_tokens = max_context_tokens
         self.model = model
         self.openai_client = OpenAI(api_key=os.getenv("OPEN_API_KEY"))
 

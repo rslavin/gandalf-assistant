@@ -1,23 +1,21 @@
 import json
+import logging
 import os
 import pickle
 import re
 import shutil
-import logging
 from datetime import datetime
 
 from tiktoken import encoding_for_model
 
 from clients.gpt_llm import GptLlm as llm_client
+
 # from clients.local_llm import LocalLlm as llm_client
 
-# max tokens the model can handle - lowering this can reduce api cost since the entire conversation is sent
-# with each request
 # TODO pay attention to short replies that occur due to long conversations: https://platform.openai.com/docs/guides/gpt/managing-tokens
-MAX_CONVERSATION_TOKENS = 400
 # TODO set a token threshold where it will switch from gpt4 to gpt3 after using too many tokens
 HISTORY_DIR = "personas"
-DIRECTIVES_PATH = "config/gpt_directives.json"
+DIRECTIVES_PATH = "config/llm_directives.json"
 
 
 def count_tokens(text, model=None) -> int:
@@ -134,7 +132,7 @@ class ConversationManager:
         """
         # TODO at fixed intervals, make a separate request to summarize the important parts of the history for long term
         # self.total_tokens includes the system token count
-        while len(self.conversation) > 1 and self.total_tokens > MAX_CONVERSATION_TOKENS - self.llm_client.max_response_tokens:
+        while len(self.conversation) > 1 and self.total_tokens > self.llm_client.max_context_tokens - self.llm_client.max_response_tokens:
             # TODO instead of popping one at a time, keep a token count with each message so the messages can be more easily pruned
             removed_message = self.conversation.pop(0)
             removed_token_count = count_tokens(removed_message['content'], self.llm_client.model)
@@ -148,7 +146,7 @@ class ConversationManager:
             logging.info(f"Message tokens: {message_tokens}")
         self.total_tokens += message_tokens
         if not silent:
-            logging.info(f"Total tokens: {self.total_tokens} / {MAX_CONVERSATION_TOKENS}")
+            logging.info(f"Total tokens: {self.total_tokens} / {self.llm_client.max_context_tokens}")
 
         message = {
             "role": role,
