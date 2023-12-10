@@ -120,7 +120,7 @@ def wait_for_wake_word(wakeword_sensitivity_pairs, mic_rate, stop_flag: dict = {
     # stop_flag must be mutable since it may be shared between threads
     dir_path = os.path.dirname(os.path.realpath(__file__))
     wakewords, sensitivities = zip(*wakeword_sensitivity_pairs)
-    file_paths = list(map(lambda file: os.path.join(dir_path, "..", file), wakewords))
+    file_paths = list(map(lambda file: os.path.join(dir_path, "../..", file), wakewords))
     porcupine = pvporcupine.create(
         access_key=os.getenv('PICOVOICE_API_KEY'),
         keyword_paths=file_paths,

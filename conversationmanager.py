@@ -2,16 +2,17 @@ import json
 import logging
 import os
 import pickle
-import re
 import shutil
-import sys
 from datetime import datetime
 
+import requests.exceptions
+from termcolor import cprint
 from tiktoken import encoding_for_model
 
 # from clients.gpt_llm import GptLlm as llm_client
-
 from clients.local_llm import LocalLlm as llm_client
+
+# from web.web_service import WebService
 
 # TODO pay attention to short replies that occur due to long conversations: https://platform.openai.com/docs/guides/gpt/managing-tokens
 # TODO set a token threshold where it will switch from gpt4 to gpt3 after using too many tokens
@@ -44,8 +45,9 @@ def get_system_directives():
 
 
 class ConversationManager:
-    def __init__(self, persona):
+    def __init__(self, persona, web_service):
         self.persona = persona
+        self.web_service = web_service
         self.llm_client = llm_client(self.persona)
         # load from disk
         dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -95,27 +97,38 @@ class ConversationManager:
                 total += count_tokens(message['content'], self.llm_client.model)
         return total
 
-    def get_response(self, message):
+    def get_response(self, user_message, origin="server"):
         # TODO make modifications directly to the message to reinforce certain rules
-        self.append_message("user", add_timestamp(message), to_disk=True)
+        self.append_message("user", add_timestamp(user_message), to_disk=True)
+        self.web_service.send_new_user_msg(user_message, origin)
         self.make_room()
 
         response = ""
-        for chunk in self.llm_client.response_generator(self.get_conversation()):
-            if chunk is not None:
-                if not response and chunk in ["1", "-1"]:  # first chunk and nonsense
-                    logging.info("Nonsense detected!")
-                    raise InvalidInputError("Nonsense detected")
+        first_chunk = True
+        try:
+            for chunk in self.llm_client.response_generator(self.get_conversation()):
+                if chunk is not None:
+                    if not response and chunk in ["1", "-1"]:  # first chunk and nonsense
+                        logging.info("Nonsense detected!")
+                        self.web_service.send_new_assistant_msg("<Nonsense detected>", origin)
+                        raise InvalidInputError("Nonsense detected")
 
-                response += chunk  # current sentence
-                yield chunk
-                print(chunk, end="", flush=True)
+                    response += chunk  # current sentence
+                    yield chunk
+                    cprint(chunk, "blue", end="", flush=True)
+                    if first_chunk:
+                        self.web_service.send_new_assistant_msg(chunk, origin)
+                        first_chunk = False
+                    else:
+                        self.web_service.append_assistant_msg(chunk, origin)
 
-        # TODO if the choices[0].get("finish_reason") is "length", have the system let the user know they've reached
-        # TODO the directed maximum token limit and ask if they'd like the system to continue. (will have to allow "yes" and "no" through preprocessing)
-        self.append_message("assistant", response, to_disk=True)
-        yield None
-        print()  # newline
+            # TODO if the choices[0].get("finish_reason") is "length", have the system let the user know they've reached
+            # TODO the directed maximum token limit and ask if they'd like the system to continue. (will have to allow "yes" and "no" through preprocessing)
+            print()  # newline
+            self.append_message("assistant", response, to_disk=True)
+            yield None
+        except requests.exceptions.HTTPError as e:
+            logging.error(f"Error retrieving response from LLM: {e}")
 
     def make_room(self, silent=False):
         """

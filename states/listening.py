@@ -2,7 +2,6 @@ import logging
 import os
 import queue
 import re
-import sys
 import threading
 import time
 import traceback
@@ -10,13 +9,14 @@ import wave
 
 import numpy as np
 import pvcobra
+import requests.exceptions
 
-import audio_utils as audio
-# from clients.riva_tts import RivaTTS as tts_client
+from clients.riva_tts import RivaTTS as tts_client
 # from clients.openai_tts import OpenAITTS as tts_client
-from clients.polly_tts import PollyTTS as tts_client
+# from clients.polly_tts import PollyTTS as tts_client
 from conversationmanager import ConversationManager, InvalidInputError
 from preprocessing import Action, preprocess
+from utils import audio as audio
 from web.web_service import WebService
 from .state_interface import State
 
@@ -111,9 +111,9 @@ def speech_to_text(file):
 class Listening(State):
 
     def __init__(self, light, bt_light, persona, sound_config, web_service: WebService):
-        self.conversation_manager = ConversationManager(persona)
-        web_service.set_llm(self.conversation_manager)
+        self.conversation_manager = ConversationManager(persona, web_service)
         self.web_service = web_service
+        self. web_service.conversation_manager = self.conversation_manager
         self.persona = persona
         self.sound_config = sound_config
         self.light = light
@@ -171,10 +171,10 @@ class Listening(State):
                 # begin pipeline to play response
                 # self.light.turn_off()
                 # self.bt_light.turn_off()
-                if response is not None:
-                    self.web_service.send_new_user_msg(question_text)
-                else:
-                    self.web_service.send_new_user_msg(question_text)
+                # if response is not None:
+                #     self.web_service.send_new_user_msg(question_text)
+                # else:
+                #     self.web_service.send_new_user_msg(question_text)
 
                 timeout_flag, continue_conversation = self.run_response_pipeline(response, question_text,
                                                                                  proc_start_time)
@@ -220,13 +220,13 @@ class Listening(State):
             if response is not None:
                 text_queue.put(response)
                 text_queue.put(None)
-                self.web_service.send_new_assistant_msg(response)
+                # self.web_service.send_new_assistant_msg(response)
             else:  # ask LLM
                 retries = 0
                 while retries < MAX_LLM_RETRIES:
                     try:
                         response_generator = self.conversation_manager.get_response(question_text)
-                        first_chunk = True
+                        # first_chunk = True
                         for response_chunk in response_generator:
                             if shared_vars['stop_playback']:
                                 # stop word detected
@@ -235,14 +235,18 @@ class Listening(State):
                             if response_chunk is None:
                                 break
 
-                            if first_chunk:
-                                first_chunk = False
-                                self.web_service.send_new_assistant_msg(response_chunk)
-                            else:
-                                self.web_service.append_assistant_msg(response_chunk)
+                            # if first_chunk:
+                            #     first_chunk = False
+                            #     self.web_service.send_new_assistant_msg(response_chunk)
+                            # else:
+                            #     self.web_service.append_assistant_msg(response_chunk)
                         break  # generator has been fully consumed, so exit the loop
+                    except requests.exceptions.HTTPError as e:
+                        self.web_service.send_new_assistant_msg("<Error processing request>")
+                        # self.conversation_manager.conversation.pop()  # TODO remove user message (it probably went to the disk)
+                        logging.error(f"Error retrieving response from LLM: {e}")
                     except InvalidInputError:
-                        self.web_service.send_new_assistant_msg("Invalid query.")
+                        self.web_service.send_new_assistant_msg("<Invalid query>")
                         shared_vars['continue_conversation'] = False
                         break
                     except TimeoutError:
@@ -270,7 +274,8 @@ class Listening(State):
                         if response_chunk is not None:
                             if first_chunk:
                                 shared_vars['text_received_time'] = time.time()
-                                logging.info(f"First text chunk received ({shared_vars['text_received_time'] - start_time:.2f} seconds)")
+                                logging.info(
+                                    f"First text chunk received ({shared_vars['text_received_time'] - start_time:.2f} seconds)")
                                 first_chunk = False
                             sentence_buffer += response_chunk  # current sentence
                         else:
@@ -323,8 +328,10 @@ class Listening(State):
                                 self.light.turn_off()
                                 self.bt_light.turn_off()
                                 shared_vars['audio_received_time'] = time.time()
-                                logging.info(f"First audio chunk received ({shared_vars['audio_received_time'] - shared_vars['text_received_time']:.2f} seconds)")
-                                logging.info(f"Total time since query: {shared_vars['audio_received_time'] - proc_start_time:.2f} seconds")
+                                logging.info(
+                                    f"First audio chunk received ({shared_vars['audio_received_time'] - shared_vars['text_received_time']:.2f} seconds)")
+                                logging.info(
+                                    f"Total time since query: {shared_vars['audio_received_time'] - proc_start_time:.2f} seconds")
                                 first_chunk = False
                             # TODO move tts rate to tts clients
                             audio.stream_audio(audio_chunk, self.tts_client.sample_rate,

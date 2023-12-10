@@ -48,25 +48,17 @@ class WebService(metaclass=SingletonMeta):
 
         @self.socketio.on('client_user_msg')
         def handle_recv_user_msg(message):
-            self.send_new_user_msg(message, "web")
             # TODO preprocess!
             # TODO ``code`` and copy
             try:
-                gen = self.conversation_manager.get_response(message)
-                first = True
+                gen = self.conversation_manager.get_response(message, "web")
                 for chunk in gen:
-                    if first:
-                        self.send_new_assistant_msg(chunk, "web")
-                        first = False
-                    else:
-                        self.append_assistant_msg(chunk, "web")
+                    pass  # messages are automatically sent by the generator (for centralization)
+
             except InvalidInputError:
                 self.send_new_assistant_msg("Invalid query.", "web")
             except TimeoutError:
                 pass
-
-    def set_llm(self, llm):
-        self.conversation_manager = llm
 
     def emit_update(self, msg_type, message, origin="server"):
         if message is not None:

@@ -1,3 +1,4 @@
+import logging
 import json
 import os
 
@@ -16,7 +17,8 @@ load_dotenv()
 
 class LocalLlm(LlmClient):
 
-    def __init__(self, persona, max_response_tokens=MAX_RESPONSE_TOKENS, max_context_tokens=MAX_CONTEXT_TOKENS, model=MODEL):
+    def __init__(self, persona, max_response_tokens=MAX_RESPONSE_TOKENS, max_context_tokens=MAX_CONTEXT_TOKENS,
+                 model=MODEL):
         super().__init__(persona)
 
         self.max_response_tokens = max_response_tokens
@@ -28,18 +30,21 @@ class LocalLlm(LlmClient):
     def response_generator(self, messages):
         suffix = "</s>"
         headers = {'Content-Type': 'application/json'}
-        # if self.first_message:
-        #     self.first_message = False
-        # else:
-        #     messages = [messages[-1]]
+
         # uses "bot" instead of "assistant" -- also add the </s> back to bot messages
-        messages = [{**message, 'role': 'bot', 'content': message['content'] + "</s>"} if message['role'] == 'assistant' else message for message in messages]
+        messages = [{**message, 'role': 'bot', 'content': message['content'] + "</s>"} if message[
+                                                                                              'role'] == 'assistant' else message
+                    for message in messages]
         messages = json.dumps({"messages": messages})
 
-        for chunk in requests.post(os.getenv("LOCAL_LLM_URL"), messages, stream=True, headers=headers):
+        response = requests.post(os.getenv("LOCAL_LLM_URL"), data=messages, stream=True, headers=headers)
+        if response.status_code != 200:
+            raise requests.exceptions.HTTPError(f"Received status code {response.status_code} from LLM")
+
+        for chunk in response.iter_content(chunk_size=None):
             if chunk:
                 chunk = chunk.decode('utf-8')
-                yield chunk[:-len(suffix)] if chunk.endswith("</s>") else chunk
+                yield chunk[:-len(suffix)] if chunk.endswith(suffix) else chunk
 
     # @timeout(15)
     # def get_response(self, message):

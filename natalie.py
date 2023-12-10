@@ -14,18 +14,19 @@ from persona import Persona
 from states.asleep import Asleep
 from states.listening import Listening
 from web.web_service import WebService
+from utils.log import LogFormatter
 
 load_dotenv()
 
 LED_PIN = 20
 SOUND_CONFIG_PATH = "config/sound.json"
-logging.basicConfig(level=logging.INFO,
-                    format='[%(asctime)s] %(levelname)s: %(message)s',
-                    datefmt='%H:%M:%S')
 
 
 class Natalie:
     def __init__(self):
+        log_level = "debug2" if os.getenv("APP_ENV", "PROD") == "LOCAL" else "info"
+        LogFormatter.config(level=log_level)
+
         dir_path = os.path.dirname(os.path.realpath(__file__))
         file_path = os.path.join(dir_path, SOUND_CONFIG_PATH)
 
@@ -64,6 +65,7 @@ class Natalie:
         self.light.blink(2)
         self.bt_light.blink(2)
         self.current_state = 0
+        logging.success("System ready")
 
     def run(self):
         try:
