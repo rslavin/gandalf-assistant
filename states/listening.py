@@ -10,6 +10,7 @@ import wave
 import numpy as np
 import pvcobra
 import requests.exceptions
+from termcolor import cprint
 
 from clients.riva_tts import RivaTTS as tts_client
 # from clients.openai_tts import OpenAITTS as tts_client
@@ -68,9 +69,9 @@ def record_query(audio_stream, audio_file, voice_detected, mic_rate, mic_amplifi
                         silence_since = time.time()
                         voice_detected = True
                         pause_time = ENDING_PAUSE_TIME  # reset pause time after first words
-                        print("V", end="", flush=True)
+                        cprint("V", "green", end="", flush=True)
                     else:
-                        print("-", end="", flush=True)
+                        cprint("-", "light_green", end="", flush=True)
                 except Exception as e:
                     logging.error(f"Error detecting voice: {e}")
                     traceback.print_exc()
@@ -169,13 +170,6 @@ class Listening(State):
                     break
 
                 # begin pipeline to play response
-                # self.light.turn_off()
-                # self.bt_light.turn_off()
-                # if response is not None:
-                #     self.web_service.send_new_user_msg(question_text)
-                # else:
-                #     self.web_service.send_new_user_msg(question_text)
-
                 timeout_flag, continue_conversation = self.run_response_pipeline(response, question_text,
                                                                                  proc_start_time)
 
@@ -278,11 +272,9 @@ class Listening(State):
                                     f"First text chunk received ({shared_vars['text_received_time'] - start_time:.2f} seconds)")
                                 first_chunk = False
                             sentence_buffer += response_chunk  # current sentence
-                        else:
-                            break
                         # TODO separate by commas at first until the llm has a chance to catch up, then revert to the regex below
                         # check if the buffer contains a full sentence to send to the tts queue
-                        if re.search(r"[^\s.\d]{2,}[\.\?!\n]", sentence_buffer):
+                        if re.search(r"[^\s.\d]{2,}[\.\?!\n]", sentence_buffer) or response_chunk is None: #re.search(r"\d{1,2}:\d{2}.", sentence_buffer):
                             sentence_buffer = re.sub(r"^\[.+\] ", '', sentence_buffer)  # remove timestamp
                             # logging.info(f'\t"{sentence_buffer.strip()}"')
                             for audio_chunk in self.tts_client.get_audio_generator(sentence_buffer):
@@ -293,6 +285,8 @@ class Listening(State):
                                     break
                                 voice_queue.put(audio_chunk)
                             sentence_buffer = ""
+                        if response_chunk is None:
+                            break
                     except TimeoutError:
                         logging.warning(f"TTS timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")
                         retries += 1
