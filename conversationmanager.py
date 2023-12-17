@@ -113,7 +113,8 @@ class ConversationManager:
 
                     # '-1' response (invalid input) can be sent across two chunks
                     if chunk in ["1", "-1"] and response == "-":  # first chunk and nonsense
-                        # TODO remove last message from conversation
+                        # remove last message from conversation
+                        self.pop_message()
                         raise InvalidInputError("Nonsense detected")
 
                     response += chunk  # current sentence
@@ -180,9 +181,54 @@ class ConversationManager:
                     pickle.dump(message, f)
                 shutil.copy(self.pkl_file, f"{self.pkl_file}.tmp")
             except Exception as e:
-                logging.warning(f"Unable to write to {self.pkl_file}: {e}")
-                logging.warning("Recovering backup...")
-                shutil.copy(f"{self.pkl_file}.tmp", self.pkl_file)
+                logging.warning(f"Error updating {self.pkl_file}: {e}")
+                logging.warning("Attempting to recover backup...")
+                if os.path.exists(f"{self.pkl_file}.tmp"):
+                    shutil.copy(f"{self.pkl_file}.tmp", self.pkl_file)
+                    logging.success("Successfully recovered backup.")
+                else:
+                    logging.error("Backup not found. Unable to recover.")
+
+    def pop_message(self):
+        # TODO test this and add it to get_response where '-1' is returned (in the exception)
+        if not self.conversation:
+            logging.info("No messages to pop.")
+            return
+
+        # Remove the last message from the in-memory conversation
+        self.conversation.pop()
+
+        # Handle the pkl file
+        if os.path.exists(self.pkl_file):
+            try:
+                # Read all messages except the last one and store them in a temporary list
+                temp_messages = []
+                with open(self.pkl_file, "rb") as f:
+                    while True:
+                        try:
+                            message = pickle.load(f)
+                            temp_messages.append(message)
+                        except EOFError:
+                            break
+                temp_messages.pop()  # Remove the last message
+
+                # Write the updated messages back to the pkl file
+                with open(f"{self.pkl_file}.tmp", "wb") as f:
+                    for message in temp_messages:
+                        pickle.dump(message, f)
+
+                # Replace the original pkl file with the updated temporary file
+                os.replace(f"{self.pkl_file}.tmp", self.pkl_file)
+            except Exception as e:
+                logging.warning(f"Error updating {self.pkl_file}: {e}")
+                logging.warning("Attempting to recover from backup...")
+                if os.path.exists(f"{self.pkl_file}.tmp"):
+                    shutil.copy(f"{self.pkl_file}.tmp", self.pkl_file)
+                    logging.success("Successfully recovered backup.")
+                else:
+                    logging.error("Backup not found. Unable to recover.")
+        else:
+            logging.info(f"No persistent storage found at {self.pkl_file}.")
 
     def get_conversation(self):
         conversation = self.conversation[:-2] + [self.system_msg] + self.conversation[-2:]
