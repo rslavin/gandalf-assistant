@@ -7,7 +7,7 @@ from timeout_function_decorator.timeout_decorator import timeout
 
 MAX_RESPONSE_TOKENS = 200
 MAX_CONTEXT_TOKENS = 2048
-MAX_CONTEXT_TOKENS = 448
+# MAX_CONTEXT_TOKENS = 448
 MODEL = "gpt-4-1106-preview"
 # MODEL = "gpt-3.5-turbo"
 

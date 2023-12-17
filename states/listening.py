@@ -12,9 +12,9 @@ import pvcobra
 import requests.exceptions
 from termcolor import cprint
 
-from clients.riva_tts import RivaTTS as tts_client
+# from clients.riva_tts import RivaTTS as tts_client
 # from clients.openai_tts import OpenAITTS as tts_client
-# from clients.polly_tts import PollyTTS as tts_client
+from clients.polly_tts import PollyTTS as tts_client
 from conversationmanager import ConversationManager, InvalidInputError
 from preprocessing import Action, preprocess
 from utils import audio as audio
@@ -214,13 +214,11 @@ class Listening(State):
             if response is not None:
                 text_queue.put(response)
                 text_queue.put(None)
-                # self.web_service.send_new_assistant_msg(response)
             else:  # ask LLM
                 retries = 0
                 while retries < MAX_LLM_RETRIES:
                     try:
                         response_generator = self.conversation_manager.get_response(question_text)
-                        # first_chunk = True
                         for response_chunk in response_generator:
                             if shared_vars['stop_playback']:
                                 # stop word detected
@@ -229,18 +227,14 @@ class Listening(State):
                             if response_chunk is None:
                                 break
 
-                            # if first_chunk:
-                            #     first_chunk = False
-                            #     self.web_service.send_new_assistant_msg(response_chunk)
-                            # else:
-                            #     self.web_service.append_assistant_msg(response_chunk)
                         break  # generator has been fully consumed, so exit the loop
                     except requests.exceptions.HTTPError as e:
                         self.web_service.send_new_assistant_msg("<Error processing request>")
                         # self.conversation_manager.conversation.pop()  # TODO remove user message (it probably went to the disk)
                         logging.error(f"Error retrieving response from LLM: {e}")
                     except InvalidInputError:
-                        self.web_service.send_new_assistant_msg("<Invalid query>")
+                        self.web_service.send_new_assistant_msg("<Nonsense detected>")
+                        logging.warning("Nonsense detected!")
                         shared_vars['continue_conversation'] = False
                         break
                     except TimeoutError:
@@ -274,7 +268,7 @@ class Listening(State):
                             sentence_buffer += response_chunk  # current sentence
                         # TODO separate by commas at first until the llm has a chance to catch up, then revert to the regex below
                         # check if the buffer contains a full sentence to send to the tts queue
-                        if re.search(r"[^\s.\d]{2,}[\.\?!\n]", sentence_buffer) or response_chunk is None: #re.search(r"\d{1,2}:\d{2}.", sentence_buffer):
+                        if re.search(r"[^\s.\d]{2,}[\.\?!\n]", sentence_buffer) or (response_chunk is None and sentence_buffer):
                             sentence_buffer = re.sub(r"^\[.+\] ", '', sentence_buffer)  # remove timestamp
                             # logging.info(f'\t"{sentence_buffer.strip()}"')
                             for audio_chunk in self.tts_client.get_audio_generator(sentence_buffer):
@@ -390,7 +384,5 @@ class Listening(State):
             response = "Done."
             logging.info(f"Setting volume to {float(question_text) * 100}%.")
             self.sound_config['speaker']['volume'] = question_text
-        else:
-            logging.info(f'Asking LLM "{question_text}"...')
 
         return action, response

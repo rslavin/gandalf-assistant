@@ -9,8 +9,8 @@ import requests.exceptions
 from termcolor import cprint
 from tiktoken import encoding_for_model
 
-# from clients.gpt_llm import GptLlm as llm_client
-from clients.local_llm import LocalLlm as llm_client
+from clients.gpt_llm import GptLlm as llm_client
+# from clients.local_llm import LocalLlm as llm_client
 
 # from web.web_service import WebService
 
@@ -99,32 +99,41 @@ class ConversationManager:
 
     def get_response(self, user_message, origin="server"):
         # TODO make modifications directly to the message to reinforce certain rules
-        self.append_message("user", add_timestamp(user_message), to_disk=True)
-        self.web_service.send_new_user_msg(user_message, origin)
-        self.make_room()
 
+
+        cprint(f"User: {user_message}", "green")
         response = ""
         first_chunk = True
         try:
             for chunk in self.llm_client.response_generator(self.get_conversation()):
-                if chunk is not None:
-                    if not response and chunk in ["1", "-1"]:  # first chunk and nonsense
-                        logging.info("Nonsense detected!")
-                        self.web_service.send_new_assistant_msg("<Nonsense detected>", origin)
+                if chunk:
+
+                    # '-1' response (invalid input) can be sent across two chunks
+                    if chunk in ["1", "-1"] and response == "-":  # first chunk and nonsense
                         raise InvalidInputError("Nonsense detected")
 
                     response += chunk  # current sentence
+
+                    # next chunk may be "1"
+                    if chunk == "-":
+                        continue
+
                     yield chunk
-                    cprint(chunk, "blue", end="", flush=True)
+
                     if first_chunk:
                         self.web_service.send_new_assistant_msg(chunk, origin)
                         first_chunk = False
+                        cprint(f"{self.persona.name}: {chunk}", "blue", end="", flush=True)
                     else:
                         self.web_service.append_assistant_msg(chunk, origin)
+                        cprint(f"{chunk}", "blue", end="", flush=True)
 
             # TODO if the choices[0].get("finish_reason") is "length", have the system let the user know they've reached
             # TODO the directed maximum token limit and ask if they'd like the system to continue. (will have to allow "yes" and "no" through preprocessing)
             print()  # newline
+            self.append_message("user", add_timestamp(user_message), to_disk=True)
+            self.web_service.send_new_user_msg(user_message, origin)
+            self.make_room()
             self.append_message("assistant", response, to_disk=True)
             yield None
         except requests.exceptions.HTTPError as e:
@@ -175,9 +184,8 @@ class ConversationManager:
                 shutil.copy(f"{self.pkl_file}.tmp", self.pkl_file)
 
     def get_conversation(self):
-        # conversation = self.conversation[:-3] + [self.system_msg] + self.conversation[-2:]
-        conversation = [self.system_msg] + self.conversation
-        # pprint(conversation)
+        conversation = self.conversation[:-2] + [self.system_msg] + self.conversation[-2:]
+        # conversation = [self.system_msg] + self.conversation
         return conversation
 
 

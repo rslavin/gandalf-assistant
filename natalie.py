@@ -52,6 +52,7 @@ class Natalie:
             file_path = os.path.join(dir_path, f"assets/{self.persona.startup_sound}")
             subprocess.call(["xdg-open", file_path])
 
+        logging.info("Starting web service")
         self.web_service = WebService()
         self.web_service.run_threaded()
 

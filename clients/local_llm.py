@@ -39,6 +39,7 @@ class LocalLlm(LlmClient):
 
         response = requests.post(os.getenv("LOCAL_LLM_URL"), data=messages, stream=True, headers=headers)
         if response.status_code != 200:
+            logging.debug2(response.json())
             raise requests.exceptions.HTTPError(f"Received status code {response.status_code} from LLM")
 
         for chunk in response.iter_content(chunk_size=None):
