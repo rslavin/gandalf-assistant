@@ -102,6 +102,9 @@ class ConversationManager:
 
 
         cprint(f"User: {user_message}", "green")
+        self.append_message("user", add_timestamp(user_message), to_disk=True)
+        self.web_service.send_new_user_msg(user_message, origin)
+        self.make_room()
         response = ""
         first_chunk = True
         try:
@@ -110,6 +113,7 @@ class ConversationManager:
 
                     # '-1' response (invalid input) can be sent across two chunks
                     if chunk in ["1", "-1"] and response == "-":  # first chunk and nonsense
+                        # TODO remove last message from conversation
                         raise InvalidInputError("Nonsense detected")
 
                     response += chunk  # current sentence
@@ -131,9 +135,6 @@ class ConversationManager:
             # TODO if the choices[0].get("finish_reason") is "length", have the system let the user know they've reached
             # TODO the directed maximum token limit and ask if they'd like the system to continue. (will have to allow "yes" and "no" through preprocessing)
             print()  # newline
-            self.append_message("user", add_timestamp(user_message), to_disk=True)
-            self.web_service.send_new_user_msg(user_message, origin)
-            self.make_room()
             self.append_message("assistant", response, to_disk=True)
             yield None
         except requests.exceptions.HTTPError as e:

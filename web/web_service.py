@@ -56,7 +56,7 @@ class WebService(metaclass=SingletonMeta):
                     pass  # messages are automatically sent by the generator (for centralization)
 
             except InvalidInputError:
-                self.send_new_assistant_msg("Invalid query.", "web")
+                self.send_new_assistant_msg("<Nonsense detected>", "web")
             except TimeoutError:
                 pass
 
