@@ -10,12 +10,13 @@ from clients.tts.tts_interface import TTSClient
 
 MODEL = 'tts-1'
 VOICE = 'shimmer'
+SAMPLE_RATE = 48000
 
 
 def decode_opus_to_pcm(opus_data):
     command = [
         "/usr/bin/ffmpeg",
-        "-i", "-",  # Read from stdin
+        "-i", "-",  # read from stdin
         "-f", "s16le",
         "-ar", "24000", # for some reason, this results in 48000 for the output file
         "-ac", "2",
@@ -28,7 +29,7 @@ def decode_opus_to_pcm(opus_data):
 
     # check if FFmpeg command was successful
     if process.returncode != 0:
-        logging.error("FFmpeg failed:", stderr.decode())
+        logging.error(f"FFmpeg failed: {stderr.decode()}")
         return None
 
     return pcm_data
@@ -39,6 +40,7 @@ class OpenAITTS(TTSClient):
     def __init__(self, persona):
         super().__init__(persona)
         self.openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        self.sample_rate = SAMPLE_RATE
 
     @timeout(8)
     def get_audio_generator(self, text, model=MODEL, voice=VOICE):
@@ -67,6 +69,7 @@ class OpenAITTS(TTSClient):
         }
 
         # TODO figure out why this isn't actually streaming. I think the api is messed up.
+        # TODO If there is only one chunk, it works. It seems that the data is being produced incorrectly and thus won't play in parts.
         with requests.post(url, headers=headers, json=data, stream=True) as response:
             for chunk in response.iter_content(chunk_size=4096):
                 # audio_segment = AudioSegment.from_file(BytesIO(chunk), format="opus")

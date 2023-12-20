@@ -1,10 +1,12 @@
 from abc import ABC, abstractmethod
 
+SAMPLE_RATE = 1600
 
 class TTSClient(ABC):
 
     def __init__(self, persona):
         self.persona = persona
+        self.sample_rate = SAMPLE_RATE
 
     @abstractmethod
     def get_audio_generator(self, text):

@@ -12,8 +12,8 @@ import pvcobra
 import requests.exceptions
 from termcolor import cprint
 
-# from clients.riva_tts import RivaTTS as tts_client
-# from clients.openai_tts import OpenAITTS as tts_client
+# from clients.tts.riva_tts import RivaTTS as tts_client
+# from clients.tts.openai_tts import OpenAITTS as tts_client
 from clients.tts.polly_tts import PollyTTS as tts_client
 from conversationmanager import ConversationManager, InvalidInputError
 from preprocessing import Action, preprocess
