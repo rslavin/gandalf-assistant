@@ -17,7 +17,7 @@ class GoogleLlm(LlmClient):
     def __init__(self, persona, max_response_tokens=MAX_RESPONSE_TOKENS, max_context_tokens=MAX_CONTEXT_TOKENS,
                  model=MODEL):
         super().__init__(persona)
-        self.bump_system_message = False
+        self.bump_system_message = True
         self.max_response_tokens = max_response_tokens
         self.max_context_tokens = max_context_tokens
         self.model = model
@@ -31,11 +31,6 @@ class GoogleLlm(LlmClient):
 
     @timeout(3)
     def response_generator(self, messages):
-        """
-        Converts openai chat completion generator chunks into text chunks.
-        :param messages: List of messages of appropriate dictionaries
-        :return:
-        """
         messages = update_roles(messages)
 
         if not self.conversation:
@@ -69,5 +64,5 @@ def update_roles(raw_messages):
             messages.append({'role': 'user', 'parts': [raw_message['content']]})
         elif raw_message["role"] == "assistant":
             messages.append({'role': 'model', 'parts': [raw_message['content']]})
-
+    print(messages)
     return messages

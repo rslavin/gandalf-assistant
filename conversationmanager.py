@@ -264,8 +264,10 @@ class ConversationManager:
         return popped_message
 
     def get_conversation(self, bump_system_msg=True):
-        if bump_system_msg:
-            conversation = self.conversation[:-2] + [self.system_msg] + self.conversation[-2:]
+        if bump_system_msg and len(self.conversation) > 4:
+            # don't place system message after a user message as some models don't like this
+            insert_position = -3 if self.conversation[-4]["role"] == "assistant" else -4
+            conversation = self.conversation[:insert_position] + [self.system_msg] + self.conversation[insert_position:]
         else:
             conversation = [self.system_msg] + self.conversation
         return conversation
