@@ -6,7 +6,7 @@ import requests
 from openai import OpenAI
 from timeout_function_decorator.timeout_decorator import timeout
 
-from .tts_interface import TTSClient
+from clients.tts.tts_interface import TTSClient
 
 MODEL = 'tts-1'
 VOICE = 'shimmer'

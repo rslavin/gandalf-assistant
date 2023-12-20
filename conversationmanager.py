@@ -9,7 +9,9 @@ import requests.exceptions
 from termcolor import cprint
 from tiktoken import encoding_for_model
 
-from clients.gpt_llm import GptLlm as llm_client
+# from clients.llm.gpt_llm import GptLlm as llm_client
+from clients.llm.google_llm import GoogleLlm as llm_client
+
 # from clients.local_llm import LocalLlm as llm_client
 
 # from web.web_service import WebService
@@ -20,9 +22,13 @@ HISTORY_DIR = "personas"
 DIRECTIVES_PATH = "config/llm_directives.json"
 
 
+# TODO update this to handle more models
 def count_tokens(text, model=None) -> int:
     model = "gpt-3.5-turbo" if model is None else model
-    encoding = encoding_for_model(model)
+    try:
+        encoding = encoding_for_model(model)
+    except KeyError:
+        encoding = encoding_for_model("gpt-3.5-turbo")
     return len(encoding.encode(text))
 
 
@@ -74,6 +80,10 @@ class ConversationManager:
                         break
             self.make_room(silent=True)
             shutil.copy(self.pkl_file, f"{self.pkl_file}.backup")
+
+            # clean up any dangling messages that may be left over.
+            self.fix_dangling_users()
+
         except Exception as e:
             logging.warning(f"The following exception occurred when trying to load {self.pkl_file}: {e}")
             logging.warning("Recovering backup...")
@@ -97,18 +107,35 @@ class ConversationManager:
                 total += count_tokens(message['content'], self.llm_client.model)
         return total
 
+    def fix_dangling_users(self):
+        popped = self.fix_dangling_user()
+        while popped:
+            logging.warning(f"Removed dangling message: {popped}")
+            popped = self.fix_dangling_user()
+
+    def fix_dangling_user(self):
+        """
+        Trims the last message if it's from the user since this implies that there was a problem receiving a
+        response from the LLM.
+        :return: Returns the user messages that did not receive a response, None otherwise.
+        """
+        if len(self.conversation) and self.conversation[-1]['role'] == 'user':
+            return self.pop_message()
+        return None
+
     def get_response(self, user_message, origin="server"):
         # TODO make modifications directly to the message to reinforce certain rules
 
-
         cprint(f"User: {user_message}", "green")
+        self.fix_dangling_users()
         self.append_message("user", add_timestamp(user_message), to_disk=True)
         self.web_service.send_new_user_msg(user_message, origin)
         self.make_room()
         response = ""
         first_chunk = True
         try:
-            for chunk in self.llm_client.response_generator(self.get_conversation()):
+            for chunk in self.llm_client.response_generator(
+                    self.get_conversation(bump_system_msg=self.llm_client.bump_system_message)):
                 if chunk:
 
                     # '-1' response (invalid input) can be sent across two chunks
@@ -148,7 +175,8 @@ class ConversationManager:
         """
         # TODO at fixed intervals, make a separate request to summarize the important parts of the history for long term
         # self.total_tokens includes the system token count
-        while len(self.conversation) > 1 and self.total_tokens > self.llm_client.max_context_tokens - self.llm_client.max_response_tokens:
+        while len(
+                self.conversation) > 1 and self.total_tokens > self.llm_client.max_context_tokens - self.llm_client.max_response_tokens:
             # TODO instead of popping one at a time, keep a token count with each message so the messages can be more easily pruned
             removed_message = self.conversation.pop(0)
             removed_token_count = count_tokens(removed_message['content'], self.llm_client.model)
@@ -183,10 +211,13 @@ class ConversationManager:
             except Exception as e:
                 logging.warning(f"Error updating {self.pkl_file}: {e}")
                 logging.warning("Attempting to recover backup...")
-                if os.path.exists(f"{self.pkl_file}.tmp"):
-                    shutil.copy(f"{self.pkl_file}.tmp", self.pkl_file)
-                    logging.success("Successfully recovered backup.")
-                else:
+                try:
+                    if os.path.exists(f"{self.pkl_file}.tmp"):
+                        shutil.copy(f"{self.pkl_file}.tmp", self.pkl_file)
+                        logging.success("Successfully recovered backup.")
+                    else:
+                        logging.error("Backup not found. Unable to recover.")
+                except FileNotFoundError:
                     logging.error("Backup not found. Unable to recover.")
 
     def pop_message(self):
@@ -196,7 +227,7 @@ class ConversationManager:
             return
 
         # Remove the last message from the in-memory conversation
-        self.conversation.pop()
+        popped_message = self.conversation.pop()
 
         # Handle the pkl file
         if os.path.exists(self.pkl_file):
@@ -230,9 +261,13 @@ class ConversationManager:
         else:
             logging.info(f"No persistent storage found at {self.pkl_file}.")
 
-    def get_conversation(self):
-        conversation = self.conversation[:-2] + [self.system_msg] + self.conversation[-2:]
-        # conversation = [self.system_msg] + self.conversation
+        return popped_message
+
+    def get_conversation(self, bump_system_msg=True):
+        if bump_system_msg:
+            conversation = self.conversation[:-2] + [self.system_msg] + self.conversation[-2:]
+        else:
+            conversation = [self.system_msg] + self.conversation
         return conversation
 
 

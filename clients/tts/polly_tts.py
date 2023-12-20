@@ -6,7 +6,7 @@ from boto3 import Session
 from botocore.exceptions import BotoCoreError, ClientError
 from timeout_function_decorator.timeout_decorator import timeout
 
-from .tts_interface import TTSClient
+from clients.tts.tts_interface import TTSClient
 
 SAMPLE_RATE = 16000
 

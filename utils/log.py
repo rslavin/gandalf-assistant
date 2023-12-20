@@ -18,7 +18,7 @@ class LogFormatter(logging.Formatter):
     DefaultColors = {
         logging.DEBUG: ('light_blue', 'bold'),
         logging.DEBUG2: 'light_blue',
-        logging.INFO: None,
+        logging.INFO: 'dark_grey',
         logging.WARNING: 'yellow',
         logging.SUCCESS: 'green',
         logging.ERROR: 'red',

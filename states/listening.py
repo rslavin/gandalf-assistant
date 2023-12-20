@@ -14,7 +14,7 @@ from termcolor import cprint
 
 # from clients.riva_tts import RivaTTS as tts_client
 # from clients.openai_tts import OpenAITTS as tts_client
-from clients.polly_tts import PollyTTS as tts_client
+from clients.tts.polly_tts import PollyTTS as tts_client
 from conversationmanager import ConversationManager, InvalidInputError
 from preprocessing import Action, preprocess
 from utils import audio as audio
@@ -114,7 +114,7 @@ class Listening(State):
     def __init__(self, light, bt_light, persona, sound_config, web_service: WebService):
         self.conversation_manager = ConversationManager(persona, web_service)
         self.web_service = web_service
-        self. web_service.conversation_manager = self.conversation_manager
+        self.web_service.conversation_manager = self.conversation_manager
         self.persona = persona
         self.sound_config = sound_config
         self.light = light
@@ -241,7 +241,8 @@ class Listening(State):
                         logging.warning(f"LLM timeout. Retrying {MAX_LLM_RETRIES - retries - 1} more times...")
                         retries += 1
                     except Exception as e:
-                        logging.error(f"Unknown error when attempting LLM request: {e}")
+                        logging.error(
+                            f"Unknown error when attempting LLM request - retrying {MAX_LLM_RETRIES - retries - 1} more times: {e}")
                         traceback.print_exc()
                         retries += 1
                     finally:
@@ -268,7 +269,8 @@ class Listening(State):
                             sentence_buffer += response_chunk  # current sentence
                         # TODO separate by commas at first until the llm has a chance to catch up, then revert to the regex below
                         # check if the buffer contains a full sentence to send to the tts queue
-                        if re.search(r"[^\s.\d]{2,}[\.\?!\n]", sentence_buffer) or (response_chunk is None and sentence_buffer):
+                        if re.search(r"[^\s.\d]{2,}[\.\?!\n]", sentence_buffer) or (
+                                response_chunk is None and sentence_buffer):
                             sentence_buffer = re.sub(r"^\[.+\] ", '', sentence_buffer)  # remove timestamp
                             # logging.info(f'\t"{sentence_buffer.strip()}"')
                             for audio_chunk in self.tts_client.get_audio_generator(sentence_buffer):

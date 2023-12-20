@@ -7,7 +7,7 @@ import riva.client
 import riva.client.audio_io
 from timeout_function_decorator.timeout_decorator import timeout
 
-from .tts_interface import TTSClient
+from clients.tts.tts_interface import TTSClient
 
 SAMPLE_RATE = 16000
 

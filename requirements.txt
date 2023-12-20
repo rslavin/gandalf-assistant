@@ -13,3 +13,4 @@ flask~=3.0.0
 PyAudio~=0.2.13
 termcolor~=2.4.0
 requests~=2.31.0
+google-generativeai~=0.3.1

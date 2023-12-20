@@ -6,7 +6,7 @@ import requests
 from dotenv import load_dotenv
 from timeout_function_decorator.timeout_decorator import timeout
 
-from .llm_interface import LlmClient
+from clients.llm.llm_interface import LlmClient
 
 MAX_RESPONSE_TOKENS = 200
 MAX_CONTEXT_TOKENS = 4096
