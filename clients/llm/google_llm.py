@@ -64,5 +64,4 @@ def update_roles(raw_messages):
             messages.append({'role': 'user', 'parts': [raw_message['content']]})
         elif raw_message["role"] == "assistant":
             messages.append({'role': 'model', 'parts': [raw_message['content']]})
-    print(messages)
     return messages

@@ -251,6 +251,17 @@ class Listening(State):
                     shared_vars['timeout_flag'] = True
 
         def enqueue_audio():
+            def process_tts_sentence(sentence):
+                # sends a given sentence to the tts generator and queues the output to voice_queue
+                sentence = re.sub(r"^\[.+\] ", '', sentence)  # remove timestamp
+                for audio_chunk in self.tts_client.get_audio_generator(sentence):
+                    if shared_vars['stop_playback']:
+                        # Stop word detected
+                        while not text_queue.empty():
+                            text_queue.get()
+                        break
+                    voice_queue.put(audio_chunk)
+
             if not shared_vars['timeout_flag']:
                 retries = 0
                 first_chunk = True
@@ -267,20 +278,16 @@ class Listening(State):
                                     f"First text chunk received ({shared_vars['text_received_time'] - start_time:.2f} seconds)")
                                 first_chunk = False
                             sentence_buffer += response_chunk  # current sentence
-                        # TODO separate by commas at first until the llm has a chance to catch up, then revert to the regex below
                         # check if the buffer contains a full sentence to send to the tts queue
-                        if re.search(r"[^\s.\d]{2,}[\.\?!\n]", sentence_buffer) or (
-                                response_chunk is None and sentence_buffer):
-                            sentence_buffer = re.sub(r"^\[.+\] ", '', sentence_buffer)  # remove timestamp
-                            # logging.info(f'\t"{sentence_buffer.strip()}"')
-                            for audio_chunk in self.tts_client.get_audio_generator(sentence_buffer):
-                                if shared_vars['stop_playback']:
-                                    # stop word detected
-                                    while not text_queue.empty():
-                                        text_queue.get()
-                                    break
-                                voice_queue.put(audio_chunk)
-                            sentence_buffer = ""
+                        match = re.search(r"(^.*[^\s.\d]{2,}[\.\?!\n])(.+)", sentence_buffer)
+                        if match:
+                            full_sentence, trailing_text = match.groups()
+                            process_tts_sentence(full_sentence)
+                            sentence_buffer = trailing_text  # keep the trailing text in buffer
+                        elif response_chunk is None and sentence_buffer:
+                            process_tts_sentence(sentence_buffer)
+                            sentence_buffer = ""  # clear the buffer
+
                         if response_chunk is None:
                             break
                     except TimeoutError:
