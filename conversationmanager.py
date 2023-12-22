@@ -139,9 +139,9 @@ class ConversationManager:
                 if chunk:
 
                     # '-1' response (invalid input) can be sent across two chunks
-                    if chunk in ["1", "-1"] and response == "-":  # first chunk and nonsense
+                    if chunk == "-1" or chunk == "1" and response == "-":
                         # remove last message from conversation
-                        self.pop_message()
+                        self.fix_dangling_user()
                         raise InvalidInputError("Nonsense detected")
 
                     response += chunk  # current sentence
