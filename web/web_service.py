@@ -5,6 +5,7 @@ from flask import Flask, render_template
 from flask_socketio import SocketIO
 
 from conversationmanager import InvalidInputError
+from enums.role_enum import Role
 
 
 class SingletonMeta(type):
@@ -40,7 +41,7 @@ class WebService(metaclass=SingletonMeta):
             if self.conversation_manager:
                 messages = self.conversation_manager.conversation
                 for message in messages:
-                    if message['role'] == "assistant":
+                    if message['role'] == Role.ASSISTANT:
                         self.send_new_assistant_msg(message['content'], "server")
                     else:
                         self.send_new_user_msg(message['content'], "server")
@@ -51,7 +52,7 @@ class WebService(metaclass=SingletonMeta):
             # TODO preprocess!
             # TODO ``code`` and copy
             try:
-                gen = self.conversation_manager.get_response(message, "web")
+                gen = self.conversation_manager.get_response(message, origin="web")
                 for chunk in gen:
                     pass  # messages are automatically sent by the generator (for centralization)
 

@@ -218,7 +218,7 @@ class Listening(State):
                 retries = 0
                 while retries < MAX_LLM_RETRIES:
                     try:
-                        response_generator = self.conversation_manager.get_response(question_text)
+                        response_generator = self.conversation_manager.get_response(question_text, origin="voice")
                         for response_chunk in response_generator:
                             if shared_vars['stop_playback']:
                                 # stop word detected

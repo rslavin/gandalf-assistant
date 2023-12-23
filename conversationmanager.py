@@ -3,6 +3,7 @@ import logging
 import os
 import pickle
 import shutil
+import time
 from datetime import datetime
 
 import requests.exceptions
@@ -11,13 +12,13 @@ from tiktoken import encoding_for_model
 
 # from clients.llm.gpt_llm import GptLlm as llm_client
 from clients.llm.google_llm import GoogleLlm as llm_client
-
-# from clients.local_llm import LocalLlm as llm_client
-
-# from web.web_service import WebService
-
 # TODO pay attention to short replies that occur due to long conversations: https://platform.openai.com/docs/guides/gpt/managing-tokens
 # TODO set a token threshold where it will switch from gpt4 to gpt3 after using too many tokens
+from enums.role_enum import Role
+
+# from clients.local_llm import LocalLlm as llm_client
+# from web.web_service import WebService
+
 HISTORY_DIR = "personas"
 DIRECTIVES_PATH = "config/llm_directives.json"
 
@@ -60,7 +61,7 @@ class ConversationManager:
         conv_file = f"{self.persona.name}_DEBUG.pkl" if os.getenv("APP_ENV") == "LOCAL" else f"{self.persona.name}.pkl"
 
         self.system_msg = {
-            "role": "system",
+            "role": Role.SYSTEM,
             "content": " ".join(persona.personality_rules) + "\n\n" + " ".join(get_system_directives())
         }
         self.total_tokens = count_tokens(self.system_msg['content'], self.llm_client.model)
@@ -75,7 +76,13 @@ class ConversationManager:
                     try:
                         msg = pickle.load(f)
                         # pprint(msg)
-                        self.append_message(msg['role'], msg['content'], silent=True)
+                        self.append_message(
+                            msg['role'],
+                            msg['content'],
+                            origin=msg['origin'],
+                            timestamp=msg['timestamp'],
+                            silent=True
+                        )
                     except EOFError:
                         break
             self.make_room(silent=True)
@@ -119,7 +126,7 @@ class ConversationManager:
         response from the LLM.
         :return: Returns the user messages that did not receive a response, None otherwise.
         """
-        if len(self.conversation) and self.conversation[-1]['role'] == 'user':
+        if len(self.conversation) and self.conversation[-1]['role'] == Role.USER:
             return self.pop_message()
         return None
 
@@ -128,7 +135,7 @@ class ConversationManager:
 
         cprint(f"User: {user_message}", "green")
         self.fix_dangling_users()
-        self.append_message("user", add_timestamp(user_message), to_disk=True)
+        self.append_message(Role.USER, add_timestamp(user_message), origin=origin, to_disk=True)
         self.web_service.send_new_user_msg(user_message, origin)
         self.make_room()
         response = ""
@@ -163,7 +170,7 @@ class ConversationManager:
             # TODO if the choices[0].get("finish_reason") is "length", have the system let the user know they've reached
             # TODO the directed maximum token limit and ask if they'd like the system to continue. (will have to allow "yes" and "no" through preprocessing)
             print()  # newline
-            self.append_message("assistant", response, to_disk=True)
+            self.append_message(Role.ASSISTANT, response, origin=self.llm_client.model, to_disk=True)
             yield None
         except requests.exceptions.HTTPError as e:
             logging.error(f"Error retrieving response from LLM: {e}")
@@ -184,23 +191,23 @@ class ConversationManager:
             if not silent:
                 logging.info(f"Pruning history to make room... {removed_token_count} tokens freed.")
 
-    def append_message(self, role, message, to_disk=False, silent=False):
+    def append_message(self, role, message, origin=None, to_disk=False, silent=False, timestamp=None):
         message_tokens = count_tokens(message, self.llm_client.model)
         if not silent:
             logging.info(f"Message tokens: {message_tokens}")
         self.total_tokens += message_tokens
         if not silent:
             logging.info(f"Total tokens: {self.total_tokens} / {self.llm_client.max_context_tokens}")
+        if not timestamp:
+            timestamp = time.time()
 
         message = {
             "role": role,
             "content": message,
-            # "origin": "web|voice",
-            # "timestamp": "time",
-            # "tokens": message_tokens,
-            # "model": model,
+            "origin": origin,
+            "timestamp": timestamp,
         }
-        # TODO add timestamp
+
         self.conversation.append(message)
         if to_disk:
             try:
@@ -266,7 +273,7 @@ class ConversationManager:
     def get_conversation(self, bump_system_msg=True):
         if bump_system_msg and len(self.conversation) > 4:
             # don't place system message after a user message as some models don't like this
-            insert_position = -3 if self.conversation[-4]["role"] == "assistant" else -4
+            insert_position = -3 if self.conversation[-4]["role"] == Role.ASSISTANT else -4
             conversation = self.conversation[:insert_position] + [self.system_msg] + self.conversation[insert_position:]
         else:
             conversation = [self.system_msg] + self.conversation

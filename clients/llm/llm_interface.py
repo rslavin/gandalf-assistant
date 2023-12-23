@@ -10,3 +10,5 @@ class LlmClient(ABC):
     @abstractmethod
     def response_generator(self, text):
         raise NotImplementedError(f"TTS Client {type(self)} has not implemented audio_chunk_generator()")
+
+    # TODO create a function to convert roles to whatever roles this model uses

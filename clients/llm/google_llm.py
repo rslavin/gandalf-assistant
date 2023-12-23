@@ -1,15 +1,20 @@
+import logging
 import os
-
-from clients.llm.llm_interface import LlmClient
+from google.ai.generativelanguage_v1beta.types.generative_service import Candidate
 import google.generativeai as genai
 from dotenv import load_dotenv
 from timeout_function_decorator.timeout_decorator import timeout
+
+from clients.llm.llm_interface import LlmClient
+from enums.role_enum import Role
 
 MAX_RESPONSE_TOKENS = 600
 MAX_CONTEXT_TOKENS = 32768
 MODEL = "gemini-pro"
 
 load_dotenv()
+
+FinishReason = Candidate.FinishReason
 
 
 class GoogleLlm(LlmClient):
@@ -47,21 +52,27 @@ class GoogleLlm(LlmClient):
         )
 
         for chunk in raw_generator:
-            if not hasattr(chunk, 'finished_reason') or chunk.finished_reason == "FINISH_REASON_STOP":
-                yield chunk.text  # same as chunk.candidates[0].parts[0].text
+            if hasattr(chunk.candidates[0], 'finish_reason') and chunk.candidates[0].finish_reason != FinishReason.STOP:
+                # logging.debug2(f"Candidate FinishReason Module: {type(chunk.candidates[0].finish_reason).__module__}")
+
+                yield ". I'm sorry, but I could not continue generating my response. I put some details about the " \
+                      "problem in my log file.\n"
+                logging.warning(f"Unable to generate response: finish_reason = {FinishReason(chunk.candidates[0].finish_reason).name}")
             else:
-                yield ". I'm sorry, but I could not continue generating my response."
+                yield chunk.text
 
 
 # TODO cache this in the object
 def update_roles(raw_messages):
     messages = []
     for raw_message in raw_messages:
-        if raw_message['role'] == 'system':
-            messages.append({'role': 'user', 'parts': [raw_message['content']]})
+        if raw_message['role'] == Role.SYSTEM:
+            messages.append({'role': str(Role.USER), 'parts': [raw_message['content']]})
             messages.append({'role': 'model', 'parts': ['Okay. I will remember these directives forever.']})
-        elif raw_message['role'] == 'user':
-            messages.append({'role': 'user', 'parts': [raw_message['content']]})
-        elif raw_message["role"] == "assistant":
+        elif raw_message['role'] == Role.USER:
+            messages.append({'role': str(Role.USER), 'parts': [raw_message['content']]})
+        elif raw_message["role"] == Role.ASSISTANT:
             messages.append({'role': 'model', 'parts': [raw_message['content']]})
+        else:
+            logging.warning(f"Unknown role '{raw_message['role']}'")
     return messages

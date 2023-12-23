@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from timeout_function_decorator.timeout_decorator import timeout
 
 from clients.llm.llm_interface import LlmClient
+from enums.role_enum import Role
 
 MAX_RESPONSE_TOKENS = 200
 MAX_CONTEXT_TOKENS = 4096
@@ -33,7 +34,7 @@ class LocalLlm(LlmClient):
 
         # uses "bot" instead of "assistant" -- also add the </s> back to bot messages
         messages = [{**message, 'role': 'bot', 'content': message['content'] + "</s>"} if message[
-                                                                                              'role'] == 'assistant' else message
+                                                                                              'role'] == Role.ASSISTANT else message
                     for message in messages]
         messages = json.dumps({"messages": messages})
 
