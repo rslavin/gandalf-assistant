@@ -6,8 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>Natalie</title>
     <!-- plugins:css -->
-<!--    <link rel="stylesheet" href="{{ url_for('static', filename='css/materialdesignicons.min.css') }}">-->
-<!--    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">-->
+    <!--    <link rel="stylesheet" href="{{ url_for('static', filename='css/materialdesignicons.min.css') }}">-->
+    <!--    <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">-->
     <!-- endinject -->
     <!-- Plugin css for this page -->
     <!-- End plugin css for this page -->
@@ -17,6 +17,8 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css')}}">
     <!-- End layout styles -->
     <link rel="shortcut icon" href="{{ url_for('static', filename='images/favicon.png')}}"/>
+
+
 </head>
 <body>
 <div class="container-scroller">
@@ -205,7 +207,8 @@
                             <div class="mx-auto pe-0 col-md-6 col-lg-7 col-xl-10 d-flex flex-column"
                                  style="height: 100%;">
 
-                                <div id="chat-list-container" class="chat-cards flex-grow-1 position-relative overflow-auto d-flex flex-column scrollbar">
+                                <div id="chat-list-container"
+                                     class="chat-cards flex-grow-1 position-relative overflow-auto d-flex flex-column scrollbar">
                                     <ul id="chat-container" class="list-unstyled mb-0 mt-auto">
                                     </ul>
                                 </div>
@@ -265,7 +268,7 @@
     <div class="card flex-grow-1 msg-card">
         <div class="card-header d-flex justify-content-between p-3">
             <p class="fw-bold mb-0">User</p>
-            <p class="text-muted small mb-0"><i class="far fa-clock"></i> YY
+            <p class="time text-muted small mb-0"><i class="far fa-clock"></i> YY
                 mins ago
             </p>
         </div>
@@ -279,7 +282,7 @@
     <div class="card flex-grow-1 msg-card">
         <div class="card-header d-flex justify-content-between p-3">
             <p class="fw-bold mb-0">Natalie</p>
-            <p class="text-muted small mb-0"><i class="far fa-clock"></i> XX
+            <p class="time text-muted small mb-0"><i class="far fa-clock"></i> XX
                 mins ago
             </p>
         </div>
@@ -295,6 +298,7 @@
 
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/luxon/2.3.0/luxon.min.js"></script>
 <script>
     let socket = io.connect(`http://${document.domain}:${location.port}`);
 
@@ -302,11 +306,11 @@
             console.log("Received update: ", data);
             switch (data["msg_type"]) {
                 case "user_msg":
-                    addMessage("user", data['message'], data['origin'])
+                    addMessage("user", data['message'], data['origin'], data['timestamp'])
                     console.log(`Adding new user message`);
                     break;
                 case "assistant_msg":
-                    addMessage("assistant", data['message'], data['origin'])
+                    addMessage("assistant", data['message'], data['origin'], data['timestamp'])
                     console.log(`Adding new assistant message`);
                     break;
                 case "assistant_append":
@@ -316,6 +320,7 @@
                 default:
                     console.log(`Unknown message type: ${data['msg_type']}`);
             }
+            updateTimestamps()
         }
     );
 
@@ -350,7 +355,7 @@
     });
 
 
-    function addMessage(role, message, origin) {
+    function addMessage(role, message, origin, timestamp) {
         let templateId;
         if (role === "user") {
             templateId = "user-msg-template"
@@ -366,7 +371,10 @@
         newMessage.classList.remove('d-none'); // unhide the message
         const messageBubble = newMessage.querySelector('.msg-card');
         const textParagraph = newMessage.querySelector('.msg');
+        const timeElement = newMessage.querySelector('.time');
         textParagraph.innerText = message;
+        timeElement.textContent = "Just now";
+        timeElement.setAttribute('data-timestamp', timestamp); // Set the data-timestamp attribute
 
         if (origin === "web")
             messageBubble.classList.add("bg-secondary")
@@ -384,6 +392,35 @@
         textParagraph.innerHTML += message.replace(/\n/g, '<br>');
         scrollBox.scrollTop = scrollBox.scrollHeight;
     }
+
+    function updateTimestamps() {
+        const timeElements = document.querySelectorAll('.time');
+        timeElements.forEach(element => {
+            // assuming the timestamp is stored in 'data-timestamp' attribute
+            const unixTimestamp = parseFloat(element.getAttribute('data-timestamp'));
+
+            // convert Unix timestamp to Luxon DateTime
+            const dateTime = luxon.DateTime.fromSeconds(unixTimestamp);
+            const now = luxon.DateTime.local();
+
+            let text;
+            if (now.diff(dateTime, 'days').days < 1) {
+                // if the timestamp is less than a day old, show a relative time
+                text = dateTime.toRelative();
+            } else {
+                // otherwise, show the full date and time
+                text = dateTime.toLocaleString(luxon.DateTime.DATETIME_MED);
+            }
+
+            element.textContent = text;
+        });
+    }
+
+    // Run the function initially
+    updateTimestamps();
+
+    // Update the timestamps every minute
+    setInterval(updateTimestamps, 60000);
 </script>
 
 </body>

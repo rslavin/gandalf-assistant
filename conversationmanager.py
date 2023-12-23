@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import pickle
+import re
 import shutil
 import time
 from datetime import datetime
@@ -36,6 +37,10 @@ def count_tokens(text, model=None) -> int:
 def add_timestamp(text) -> str:
     timestamp = datetime.now().strftime("[%B %-d, %Y %-I:%M:%S%p]")
     return f"{timestamp} {text}"
+
+
+def remove_timestamp(text) -> str:
+    return re.sub(r"^\[.+\] ", '', text)
 
 
 def get_system_directives():
@@ -164,7 +169,7 @@ class ConversationManager:
                         first_chunk = False
                         cprint(f"{self.persona.name}: {chunk}", "blue", end="", flush=True)
                     else:
-                        self.web_service.append_assistant_msg(chunk, origin)
+                        self.web_service.append_assistant_msg(chunk)
                         cprint(f"{chunk}", "blue", end="", flush=True)
 
             # TODO if the choices[0].get("finish_reason") is "length", have the system let the user know they've reached
@@ -226,6 +231,7 @@ class ConversationManager:
                         logging.error("Backup not found. Unable to recover.")
                 except FileNotFoundError:
                     logging.error("Backup not found. Unable to recover.")
+        return message
 
     def pop_message(self):
         # TODO test this and add it to get_response where '-1' is returned (in the exception)

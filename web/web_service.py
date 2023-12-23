@@ -1,9 +1,11 @@
 import logging
 import threading
+import time
 
 from flask import Flask, render_template
 from flask_socketio import SocketIO
 
+import conversationmanager
 from conversationmanager import InvalidInputError
 from enums.role_enum import Role
 
@@ -42,9 +44,9 @@ class WebService(metaclass=SingletonMeta):
                 messages = self.conversation_manager.conversation
                 for message in messages:
                     if message['role'] == Role.ASSISTANT:
-                        self.send_new_assistant_msg(message['content'], "server")
+                        self.send_new_assistant_msg(message['content'], message['origin'], timestamp=message['timestamp'])
                     else:
-                        self.send_new_user_msg(message['content'], "server")
+                        self.send_new_user_msg(conversationmanager.remove_timestamp(message['content']), message['origin'], timestamp=message['timestamp'])
                 logging.info(f"New web client connection. Sending {len(messages)} messages from conversation.")
 
         @self.socketio.on('client_user_msg')
@@ -57,22 +59,34 @@ class WebService(metaclass=SingletonMeta):
                     pass  # messages are automatically sent by the generator (for centralization)
 
             except InvalidInputError:
-                self.send_new_assistant_msg("<Nonsense detected>", "web")
+                self.send_new_assistant_msg("<Nonsense detected>", self.conversation_manager.llm_client.model)
             except TimeoutError:
                 pass
 
-    def emit_update(self, msg_type, message, origin="server"):
+    def emit_update(self, msg_type, message, origin, timestamp=None):
+        """
+
+        :param msg_type: 'user_msg', 'assistant_msg', or 'assistant_append' depending on whether it is a whole user
+        messages, the first chunk of an assistant message, or a subsequent chunk of an assistant message
+        :param message:
+        :param origin:
+        :param timestamp:
+        :return:
+        """
+
+        if timestamp is None:
+            timestamp = time.time()
         if message is not None:
-            self.socketio.emit('server_chat_msg', {"msg_type": msg_type, "message": message, "origin": origin})
+            self.socketio.emit('server_chat_msg', {"msg_type": msg_type, "message": message, "origin": origin, "timestamp": timestamp})
 
-    def send_new_user_msg(self, message, origin="server"):
-        self.emit_update('user_msg', message, origin)
+    def send_new_user_msg(self, message, origin, timestamp=None):
+        self.emit_update('user_msg', message, origin, timestamp=timestamp)
 
-    def send_new_assistant_msg(self, message, origin="server"):
-        self.emit_update('assistant_msg', message, origin)
+    def send_new_assistant_msg(self, message, origin, timestamp=None):
+        self.emit_update('assistant_msg', message, origin, timestamp=timestamp)
 
-    def append_assistant_msg(self, message, origin="server"):
-        self.emit_update('assistant_append', message, origin)
+    def append_assistant_msg(self, message):
+        self.emit_update('assistant_append', message, origin="n/a")
 
     def run_threaded(self):
         t = threading.Thread(target=self.run)

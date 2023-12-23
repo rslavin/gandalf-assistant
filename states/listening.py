@@ -14,6 +14,7 @@ from termcolor import cprint
 
 # from clients.tts.riva_tts import RivaTTS as tts_client
 # from clients.tts.openai_tts import OpenAITTS as tts_client
+import conversationmanager
 from clients.tts.polly_tts import PollyTTS as tts_client
 from conversationmanager import ConversationManager, InvalidInputError
 from preprocessing import Action, preprocess
@@ -229,11 +230,11 @@ class Listening(State):
 
                         break  # generator has been fully consumed, so exit the loop
                     except requests.exceptions.HTTPError as e:
-                        self.web_service.send_new_assistant_msg("<Error processing request>")
+                        self.web_service.send_new_assistant_msg("<Error processing request>", self.conversation_manager.llm_client.model)
                         # self.conversation_manager.conversation.pop()  # TODO remove user message (it probably went to the disk)
                         logging.error(f"Error retrieving response from LLM: {e}")
                     except InvalidInputError:
-                        self.web_service.send_new_assistant_msg("<Nonsense detected>")
+                        self.web_service.send_new_assistant_msg("<Nonsense detected>", self.conversation_manager.llm_client.model)
                         logging.warning("Nonsense detected!")
                         shared_vars['continue_conversation'] = False
                         break
@@ -253,7 +254,8 @@ class Listening(State):
         def enqueue_audio():
             def process_tts_sentence(sentence):
                 # sends a given sentence to the tts generator and queues the output to voice_queue
-                sentence = re.sub(r"^\[.+\] ", '', sentence)  # remove timestamp
+                # sentence = re.sub(r"^\[.+\] ", '', sentence)  # remove timestamp
+                sentence = conversationmanager.remove_timestamp(sentence)
                 for audio_chunk in self.tts_client.get_audio_generator(sentence):
                     if shared_vars['stop_playback']:
                         # Stop word detected
