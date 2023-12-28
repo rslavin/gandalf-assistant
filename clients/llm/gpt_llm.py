@@ -30,6 +30,9 @@ class GptLlm(LlmClient):
         :param messages: List of messages of appropriate dictionaries
         :return:
         """
+
+        messages = [{'content': d['content'], 'role': d['role'].__str__()} for d in messages]
+
         raw_generator = self.openai_client.chat.completions.create(
             model=self.model,
             messages=messages,

@@ -11,8 +11,8 @@ import requests.exceptions
 from termcolor import cprint
 from tiktoken import encoding_for_model
 
-# from clients.llm.gpt_llm import GptLlm as llm_client
-from clients.llm.google_llm import GoogleLlm as llm_client
+from clients.llm.gpt_llm import GptLlm as llm_client
+# from clients.llm.google_llm import GoogleLlm as llm_client
 # TODO pay attention to short replies that occur due to long conversations: https://platform.openai.com/docs/guides/gpt/managing-tokens
 # TODO set a token threshold where it will switch from gpt4 to gpt3 after using too many tokens
 from enums.role_enum import Role
